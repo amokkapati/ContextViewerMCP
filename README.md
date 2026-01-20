@@ -5,3 +5,9 @@
 ```bash
 python3 /Users/anishnutakki/ContextViewerMCP/server.py
 ```
+
+## Install tex to pdf compiler
+
+```bash
+brew install --cask mactex-no-gui
+```
