@@ -2,6 +2,7 @@
 import json
 import mimetypes
 import os
+import subprocess
 import sys
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -25,6 +26,10 @@ class FileServerHandler(SimpleHTTPRequestHandler):
 
         if self.path.startswith("/api/file-content"):
             self.handle_file_content_api()
+            return
+
+        if self.path.startswith("/api/render-tex"):
+            self.handle_render_tex_api()
             return
 
         super().do_GET()
@@ -117,6 +122,62 @@ class FileServerHandler(SimpleHTTPRequestHandler):
         except Exception:
             self.send_error(500)
 
+    def handle_render_tex_api(self):
+        try:
+            path = unquote(self.path.replace("/api/render-tex", "", 1)).lstrip("/")
+            full_path = os.path.join(self.base_dir, path)
+            full_path = os.path.normpath(full_path)
+
+            if not full_path.startswith(self.base_dir):
+                self.send_json_response({"success": False, "error": "Access denied"})
+                return
+
+            if not os.path.isfile(full_path) or not full_path.endswith(".tex"):
+                self.send_json_response({"success": False, "error": "Invalid .tex file"})
+                return
+
+            tex_dir = os.path.dirname(full_path)
+            tex_filename = os.path.basename(full_path)
+            pdf_filename = tex_filename.rsplit(".", 1)[0] + ".pdf"
+            pdf_path = os.path.join(tex_dir, pdf_filename)
+
+            result = subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode", tex_filename],
+                cwd=tex_dir,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            # Clean up auxiliary files
+            for ext in [".aux", ".log"]:
+                aux_file = os.path.join(tex_dir, tex_filename.rsplit(".", 1)[0] + ext)
+                if os.path.exists(aux_file):
+                    os.remove(aux_file)
+
+            if result.returncode != 0 or not os.path.exists(pdf_path):
+                error_msg = result.stderr or result.stdout or "pdflatex compilation failed"
+                self.send_json_response({"success": False, "error": error_msg[:500]})
+                return
+
+            rel_pdf_path = os.path.relpath(pdf_path, self.base_dir)
+            self.send_json_response({
+                "success": True,
+                "pdf_url": "/" + quote(rel_pdf_path),
+            })
+        except subprocess.TimeoutExpired:
+            self.send_json_response({"success": False, "error": "Compilation timed out"})
+        except FileNotFoundError:
+            self.send_json_response({"success": False, "error": "pdflatex not found. Please install LaTeX."})
+        except Exception as e:
+            self.send_json_response({"success": False, "error": str(e)})
+
+    def send_json_response(self, data):
+        self.send_response(200)
+        self.send_header("Content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode("utf-8"))
+
     def handle_confirm_selection(self):
         content_length = int(self.headers.get("Content-Length", "0"))
         post_data = self.rfile.read(content_length)
@@ -176,6 +237,12 @@ class FileServerHandler(SimpleHTTPRequestHandler):
         .confirmation-bar.show { display: flex; gap: 10px; align-items: center; }
         .preview-frame { width: 100%; height: 80vh; border: none; background: #1e1e1e; }
         img.preview-image { max-width: 100%; height: auto; border-radius: 4px; }
+        .tex-toolbar { display: flex; gap: 5px; margin-bottom: 10px; }
+        .tex-toolbar button { background: #3e3e42; color: #e0e0e0; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
+        .tex-toolbar button:hover { background: #4e4e52; }
+        .tex-toolbar button.active { background: #007acc; }
+        .tex-loading { text-align: center; padding: 40px; color: #888; }
+        .tex-error { color: #f48771; padding: 15px; background: #3a2a2a; border-radius: 4px; white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 300px; overflow: auto; }
     </style>
 </head>
 <body>
@@ -254,8 +321,12 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             }
         }
 
+        let currentTexView = 'source';
+
         function displayFile(data, name) {
             const content = document.getElementById('content');
+            const isTexFile = name.toLowerCase().endsWith('.tex');
+
             if (!data.is_text) {
                 const mime = data.mime_type || '';
                 if (mime.startsWith('image/')) {
@@ -273,8 +344,18 @@ class FileServerHandler(SimpleHTTPRequestHandler):
                 return;
             }
 
+            currentTexView = 'source';
             const lines = data.content.split('\\n');
-            let html = `<div class="file-preview"><div class="file-name">${name}</div><pre><code>`;
+            let html = '';
+
+            if (isTexFile) {
+                html += `<div class="tex-toolbar">
+                    <button id="texSourceBtn" class="active" onclick="showTexSource()">Source</button>
+                    <button id="texRenderBtn" onclick="renderTexFile()">Render PDF</button>
+                </div>`;
+            }
+
+            html += `<div class="file-preview"><div class="file-name">${name}</div><div id="texContent"><pre><code>`;
             lines.forEach((line, idx) => {
                 const lineNum = idx + 1;
                 const escapedLine = escapeHtml(line) || '&nbsp;';
@@ -283,7 +364,7 @@ class FileServerHandler(SimpleHTTPRequestHandler):
                 html += escapedLine;
                 html += '</div>';
             });
-            html += '</code></pre></div>';
+            html += '</code></pre></div></div>';
             content.innerHTML = html;
 
             const lineEls = content.querySelectorAll('.line');
@@ -435,6 +516,36 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             updateSelectionInfo();
         }
 
+        function showTexSource() {
+            if (currentTexView === 'source') return;
+            currentTexView = 'source';
+            document.getElementById('texSourceBtn').classList.add('active');
+            document.getElementById('texRenderBtn').classList.remove('active');
+            loadFile(currentFilePath, currentFile);
+        }
+
+        async function renderTexFile() {
+            if (currentTexView === 'pdf') return;
+            currentTexView = 'pdf';
+            document.getElementById('texSourceBtn').classList.remove('active');
+            document.getElementById('texRenderBtn').classList.add('active');
+
+            const texContent = document.getElementById('texContent');
+            texContent.innerHTML = '<div class="tex-loading">Compiling LaTeX...</div>';
+
+            try {
+                const res = await fetch('/api/render-tex/' + currentFilePath);
+                const data = await res.json();
+
+                if (data.success) {
+                    texContent.innerHTML = `<iframe class="preview-frame" src="${data.pdf_url}"></iframe>`;
+                } else {
+                    texContent.innerHTML = `<div class="tex-error">Error compiling LaTeX:\\n\\n${escapeHtml(data.error)}</div>`;
+                }
+            } catch (e) {
+                texContent.innerHTML = `<div class="tex-error">Error: ${escapeHtml(e.message)}</div>`;
+            }
+        }
 
         async function confirmSelection() {
             if (selectedLines.size === 0) return;
