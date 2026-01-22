@@ -1,0 +1,14 @@
+# MCP SDK for Python
+mcp>=1.0.0
+
+# Note: The MCP server uses only standard library modules beyond mcp:
+# - asyncio (async/await support)
+# - json (JSON parsing)
+# - pathlib (file path handling)
+# - subprocess (process management)
+# - logging (logging support)
+#
+# The HTTP server (server.py) uses only standard library modules:
+# - http.server (web server)
+# - mimetypes (file type detection)
+# - urllib.parse (URL handling)
