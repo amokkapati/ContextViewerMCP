@@ -3,7 +3,7 @@
 ## Run the file browser
 
 ```bash
-python3 /Users/anishnutakki/ContextViewerMCP/server.py
+python3 /ContextViewerMCP/server.py
 ```
 
 ## Install tex to pdf compiler
