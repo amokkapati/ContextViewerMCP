@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Context Viewer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div style="font-weight: bold; margin-bottom: 10px; color: #007acc;">Files</div>
+            <div id="fileTree"></div>
+        </div>
+        <div class="main">
+            <div class="breadcrumb" id="breadcrumb"></div>
+            <div class="toolbar">
+                <button id="confirmBtn" disabled>✓ Confirm Selection</button>
+                <button id="clearBtn" onclick="clearSelection()">✕ Clear Selection</button>
+                <span id="selectionInfo" style="flex: 1; color: #888;"></span>
+            </div>
+            <div class="hint">
+                Click to toggle line, shift-click to select a range, drag to select a block.
+                Double-click selects a paragraph. Option/Alt-click selects an indent block.
+            </div>
+            <div class="content" id="content">
+                <div style="color: #888; text-align: center; margin-top: 40px;">Select a file to view</div>
+            </div>
+            <div class="confirmation-bar" id="confirmationBar">
+                <span>Selection confirmed and printed to terminal</span>
+            </div>
+        </div>
+    </div>
+    <script src="/static/app.js"></script>
+</body>
+</html>

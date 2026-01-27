@@ -4,6 +4,7 @@ import mimetypes
 import os
 import subprocess
 import sys
+import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import quote, unquote
@@ -18,6 +19,10 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-type", "text/html; charset=utf-8")
             self.end_headers()
             self.wfile.write(self.get_html().encode("utf-8"))
+            return
+
+        if self.path.startswith("/static/"):
+            self.handle_static_file()
             return
 
         if self.path.startswith("/api/files"):
@@ -41,6 +46,40 @@ class FileServerHandler(SimpleHTTPRequestHandler):
 
         self.send_response(404)
         self.end_headers()
+
+    def handle_static_file(self):
+        try:
+            # Remove /static/ prefix and get the file path
+            file_path = self.path.replace("/static/", "", 1)
+            static_dir = os.path.join(os.path.dirname(__file__), "static")
+            full_path = os.path.join(static_dir, file_path)
+            full_path = os.path.normpath(full_path)
+
+            # Security check: ensure we're serving from static dir
+            if not full_path.startswith(static_dir):
+                self.send_error(403)
+                return
+
+            if not os.path.isfile(full_path):
+                self.send_error(404)
+                return
+
+            # Determine content type
+            mime_type, _ = mimetypes.guess_type(full_path)
+            if mime_type is None:
+                mime_type = "application/octet-stream"
+
+            # Read and serve the file
+            with open(full_path, "rb") as f:
+                content = f.read()
+
+            self.send_response(200)
+            self.send_header("Content-type", mime_type)
+            self.send_header("Content-Length", len(content))
+            self.end_headers()
+            self.wfile.write(content)
+        except Exception:
+            self.send_error(500)
 
     def handle_files_api(self):
         try:
@@ -192,405 +231,41 @@ class FileServerHandler(SimpleHTTPRequestHandler):
         print(data.get("selected_text", ""))
         print("=" * 60 + "\n")
 
+        # Save selection to state file for MCP server
+        import time
+        state_file = Path.home() / ".context-viewer-state.json"
+        try:
+            existing_state = {}
+            if state_file.exists():
+                with open(state_file, "r") as f:
+                    existing_state = json.load(f)
+
+            existing_state["selection"] = {
+                "file_path": data.get("file_path", ""),
+                "start_line": data.get("start_line", 0),
+                "end_line": data.get("end_line", 0),
+                "selected_text": data.get("selected_text", ""),
+                "timestamp": time.time(),
+            }
+
+            with open(state_file, "w") as f:
+                json.dump(existing_state, f, indent=2)
+        except Exception as e:
+            print(f"Warning: Failed to save selection state: {e}")
+
         self.send_response(200)
         self.send_header("Content-type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
 
     def get_html(self):
-        return """<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Context Viewer</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: system-ui, -apple-system, sans-serif; background: #1e1e1e; color: #e0e0e0; }
-        .container { display: flex; height: 100vh; }
-        .sidebar { width: 280px; flex: 0 0 280px; background: #252526; border-right: 1px solid #3e3e42; overflow-y: auto; padding: 10px; }
-        .main { flex: 1; display: flex; flex-direction: column; }
-        .toolbar { background: #2d2d30; padding: 10px; border-bottom: 1px solid #3e3e42; display: flex; gap: 10px; align-items: center; }
-        .toolbar button { background: #007acc; color: white; border: none; padding: 8px 16px; cursor: pointer; border-radius: 4px; }
-        .toolbar button:hover { background: #0098ff; }
-        .toolbar button:disabled { background: #555; cursor: not-allowed; }
-        .content { flex: 1; overflow: auto; padding: 20px; }
-        .file-item { padding: 8px; cursor: pointer; margin: 2px 0; border-radius: 4px; display: flex; align-items: center; gap: 8px; }
-        .file-item:hover { background: #3e3e42; }
-        .file-item.active { background: #007acc; }
-        .folder-icon::before { content: "📁"; margin-right: 4px; }
-        .file-icon::before { content: "📄"; margin-right: 4px; }
-        .breadcrumb { padding: 10px; background: #2d2d30; border-bottom: 1px solid #3e3e42; display: flex; gap: 5px; flex-wrap: wrap; }
-        .breadcrumb span { cursor: pointer; padding: 5px 10px; border-radius: 4px; }
-        .breadcrumb span:hover { background: #3e3e42; }
-        .hint { padding: 8px 10px; color: #888; font-size: 12px; }
-        pre { background: #1e1e1e; padding: 15px; border-radius: 4px; overflow-x: auto; }
-        code { font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; }
-        .line { display: block; padding: 0 10px; }
-        .line.selected { background: #264f78; }
-        .file-preview { margin-top: 20px; }
-        .file-name { font-weight: bold; padding: 10px 0; }
-        .binary-file { text-align: center; color: #888; padding: 40px; }
-        .confirmation-bar { background: #0e639c; padding: 15px; border-top: 1px solid #3e3e42; display: none; }
-        .confirmation-bar.show { display: flex; gap: 10px; align-items: center; }
-        .preview-frame { width: 100%; height: 80vh; border: none; background: #1e1e1e; }
-        img.preview-image { max-width: 100%; height: auto; border-radius: 4px; }
-        .tex-toolbar { display: flex; gap: 5px; margin-bottom: 10px; }
-        .tex-toolbar button { background: #3e3e42; color: #e0e0e0; border: none; padding: 6px 12px; cursor: pointer; border-radius: 4px; }
-        .tex-toolbar button:hover { background: #4e4e52; }
-        .tex-toolbar button.active { background: #007acc; }
-        .tex-loading { text-align: center; padding: 40px; color: #888; }
-        .tex-error { color: #f48771; padding: 15px; background: #3a2a2a; border-radius: 4px; white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 300px; overflow: auto; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="sidebar">
-            <div style="font-weight: bold; margin-bottom: 10px; color: #007acc;">Files</div>
-            <div id="fileTree"></div>
-        </div>
-        <div class="main">
-            <div class="breadcrumb" id="breadcrumb"></div>
-            <div class="toolbar">
-                <button id="confirmBtn" disabled>✓ Confirm Selection</button>
-                <button id="clearBtn" onclick="clearSelection()">✕ Clear Selection</button>
-                <span id="selectionInfo" style="flex: 1; color: #888;"></span>
-            </div>
-            <div class="hint">
-                Click to toggle line, shift-click to select a range, drag to select a block.
-                Double-click selects a paragraph. Option/Alt-click selects an indent block.
-            </div>
-            <div class="content" id="content">
-                <div style="color: #888; text-align: center; margin-top: 40px;">Select a file to view</div>
-            </div>
-            <div class="confirmation-bar" id="confirmationBar">
-                <span>Selection confirmed and printed to terminal</span>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        let currentPath = '';
-        let currentFile = '';
-        let currentFilePath = '';
-        let currentFileLines = [];
-        let selectedLines = new Set();
-        let isDragging = false;
-        let dragStartLine = null;
-        let lastClickedLine = null;
-
-        async function loadFiles(path = '') {
-            try {
-                const res = await fetch('/api/files' + (path ? '/' + path : '/'));
-                const files = await res.json();
-                const tree = document.getElementById('fileTree');
-                tree.innerHTML = '';
-                files.forEach(f => {
-                    const div = document.createElement('div');
-                    div.className = 'file-item';
-                    div.innerHTML = `<span class="${f.is_dir ? 'folder-icon' : 'file-icon'}"></span>${f.name}`;
-                    if (f.is_dir) {
-                        div.onclick = () => loadFiles(f.path);
-                    } else {
-                        div.onclick = () => loadFile(f.path, f.name);
-                    }
-                    tree.appendChild(div);
-                });
-                updateBreadcrumb(path);
-                currentPath = path;
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        async function loadFile(path, name) {
-            try {
-                const res = await fetch('/api/file-content/' + path);
-                const data = await res.json();
-                currentFile = name;
-                currentFilePath = path;
-                currentFileLines = (data.content || '').split('\\n');
-                displayFile(data, name);
-                selectedLines.clear();
-                lastClickedLine = null;
-                updateSelectionInfo();
-            } catch (e) {
-                console.error(e);
-            }
-        }
-
-        let currentTexView = 'source';
-
-        function displayFile(data, name) {
-            const content = document.getElementById('content');
-            const isTexFile = name.toLowerCase().endsWith('.tex');
-
-            if (!data.is_text) {
-                const mime = data.mime_type || '';
-                if (mime.startsWith('image/')) {
-                    content.innerHTML = `<div class="file-name">${name}</div><img class="preview-image" src="${data.file_url}" alt="${name}">`;
-                } else if (mime === 'application/pdf') {
-                    content.innerHTML = `<div class="file-name">${name}</div><iframe class="preview-frame" src="${data.file_url}"></iframe>`;
-                } else {
-                    content.innerHTML = `<div class="file-name">${name}</div><div class="binary-file">Preview not supported. <a href="${data.file_url}" style="color:#4aa3ff;">Download</a></div>`;
-                }
-                return;
-            }
-
-            if (!data.content) {
-                content.innerHTML = `<div class="file-name">${name}</div><div class="binary-file">Empty file or unable to read</div>`;
-                return;
-            }
-
-            currentTexView = 'source';
-            const lines = data.content.split('\\n');
-            let html = '';
-
-            if (isTexFile) {
-                html += `<div class="tex-toolbar">
-                    <button id="texSourceBtn" class="active" onclick="showTexSource()">Source</button>
-                    <button id="texRenderBtn" onclick="renderTexFile()">Render PDF</button>
-                </div>`;
-            }
-
-            html += `<div class="file-preview"><div class="file-name">${name}</div><div id="texContent"><pre><code>`;
-            lines.forEach((line, idx) => {
-                const lineNum = idx + 1;
-                const escapedLine = escapeHtml(line) || '&nbsp;';
-                html += `<div class="line" data-line="${lineNum}" onclick="handleLineClick(${lineNum}, event)" style="cursor: pointer;">`;
-                html += `<span style="color: #858585; margin-right: 10px; user-select: none;">${lineNum}</span>`;
-                html += escapedLine;
-                html += '</div>';
-            });
-            html += '</code></pre></div></div>';
-            content.innerHTML = html;
-
-            const lineEls = content.querySelectorAll('.line');
-            lineEls.forEach(el => {
-                el.addEventListener('mousedown', (e) => {
-                    const lineNum = parseInt(el.dataset.line, 10);
-                    if (Number.isNaN(lineNum)) return;
-                    if (!e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
-                        clearSelection();
-                    }
-                    isDragging = true;
-                    dragStartLine = lineNum;
-                    setRangeSelection(lineNum, lineNum, true);
-                    e.preventDefault();
-                });
-                el.addEventListener('mouseover', () => {
-                    if (!isDragging || dragStartLine === null) return;
-                    const lineNum = parseInt(el.dataset.line, 10);
-                    if (Number.isNaN(lineNum)) return;
-                    setRangeSelection(dragStartLine, lineNum, true);
-                });
-            });
-        }
-
-        function handleLineClick(lineNum, event) {
-            event.stopPropagation();
-            if (event.altKey) {
-                selectIndentBlock(lineNum);
-                lastClickedLine = lineNum;
-                return;
-            }
-            if (event.detail === 2) {
-                selectParagraph(lineNum);
-                lastClickedLine = lineNum;
-                return;
-            }
-            if (event.shiftKey && lastClickedLine !== null) {
-                setRangeSelection(lastClickedLine, lineNum, false);
-            } else {
-                toggleLine(lineNum);
-            }
-            lastClickedLine = lineNum;
-            updateSelectionInfo();
-        }
-
-        function escapeHtml(text) {
-            if (typeof hljs !== 'undefined' && hljs.utils && hljs.utils.escapeHtml) {
-                return hljs.utils.escapeHtml(text);
-            }
-            return text
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function toggleLine(lineNum) {
-            const lineEl = document.querySelector(`[data-line="${lineNum}"]`);
-            if (!lineEl) return;
-            if (selectedLines.has(lineNum)) {
-                selectedLines.delete(lineNum);
-                lineEl.classList.remove('selected');
-            } else {
-                selectedLines.add(lineNum);
-                lineEl.classList.add('selected');
-            }
-        }
-
-        function setRangeSelection(start, end, replace) {
-            const from = Math.min(start, end);
-            const to = Math.max(start, end);
-            if (replace) {
-                clearSelection();
-            }
-            for (let ln = from; ln <= to; ln++) {
-                const lineEl = document.querySelector(`[data-line="${ln}"]`);
-                if (lineEl) {
-                    selectedLines.add(ln);
-                    lineEl.classList.add('selected');
-                }
-            }
-            updateSelectionInfo();
-        }
-
-        function selectParagraph(lineNum) {
-            if (!currentFileLines.length) return;
-            let start = lineNum;
-            let end = lineNum;
-            while (start > 1 && currentFileLines[start - 2].trim() !== '') {
-                start -= 1;
-            }
-            while (end < currentFileLines.length && currentFileLines[end].trim() !== '') {
-                end += 1;
-            }
-            setRangeSelection(start, end, true);
-        }
-
-        function selectIndentBlock(lineNum) {
-            if (!currentFileLines.length) return;
-            const lineText = currentFileLines[lineNum - 1] || '';
-            if (lineText.trim() === '') return;
-            const baseIndent = lineText.match(/^\\s*/)[0].length;
-            let start = lineNum;
-            let end = lineNum;
-            while (start > 1) {
-                const prev = currentFileLines[start - 2];
-                if (prev.trim() === '') {
-                    start -= 1;
-                    continue;
-                }
-                const indent = prev.match(/^\\s*/)[0].length;
-                if (indent < baseIndent) break;
-                start -= 1;
-            }
-            while (end < currentFileLines.length) {
-                const next = currentFileLines[end];
-                if (next.trim() === '') {
-                    end += 1;
-                    continue;
-                }
-                const indent = next.match(/^\\s*/)[0].length;
-                if (indent < baseIndent) break;
-                end += 1;
-            }
-            setRangeSelection(start, end, true);
-        }
-
-        function updateSelectionInfo() {
-            const btn = document.getElementById('confirmBtn');
-            const info = document.getElementById('selectionInfo');
-            if (selectedLines.size === 0) {
-                btn.disabled = true;
-                info.textContent = '';
-            } else {
-                btn.disabled = false;
-                const sorted = Array.from(selectedLines).sort((a, b) => a - b);
-                info.textContent = `${selectedLines.size} line(s) selected (${sorted[0]}-${sorted[sorted.length - 1]})`;
-            }
-        }
-
-        function clearSelection() {
-            selectedLines.forEach(ln => {
-                const el = document.querySelector(`[data-line="${ln}"]`);
-                if (el) el.classList.remove('selected');
-            });
-            selectedLines.clear();
-            lastClickedLine = null;
-            updateSelectionInfo();
-        }
-
-        function showTexSource() {
-            if (currentTexView === 'source') return;
-            currentTexView = 'source';
-            document.getElementById('texSourceBtn').classList.add('active');
-            document.getElementById('texRenderBtn').classList.remove('active');
-            loadFile(currentFilePath, currentFile);
-        }
-
-        async function renderTexFile() {
-            if (currentTexView === 'pdf') return;
-            currentTexView = 'pdf';
-            document.getElementById('texSourceBtn').classList.remove('active');
-            document.getElementById('texRenderBtn').classList.add('active');
-
-            const texContent = document.getElementById('texContent');
-            texContent.innerHTML = '<div class="tex-loading">Compiling LaTeX...</div>';
-
-            try {
-                const res = await fetch('/api/render-tex/' + currentFilePath);
-                const data = await res.json();
-
-                if (data.success) {
-                    texContent.innerHTML = `<iframe class="preview-frame" src="${data.pdf_url}"></iframe>`;
-                } else {
-                    texContent.innerHTML = `<div class="tex-error">Error compiling LaTeX:\\n\\n${escapeHtml(data.error)}</div>`;
-                }
-            } catch (e) {
-                texContent.innerHTML = `<div class="tex-error">Error: ${escapeHtml(e.message)}</div>`;
-            }
-        }
-
-        async function confirmSelection() {
-            if (selectedLines.size === 0) return;
-
-            const lines = Array.from(selectedLines).sort((a, b) => a - b);
-            const selectedText = lines.map(ln => currentFileLines[ln - 1] ?? '').join('\\n');
-
-            await fetch('/api/confirm-selection', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    file_path: currentFilePath || currentFile,
-                    start_line: lines[0],
-                    end_line: lines[lines.length - 1],
-                    selected_text: selectedText
-                })
-            });
-
-            const bar = document.getElementById('confirmationBar');
-            bar.classList.add('show');
-            setTimeout(() => bar.classList.remove('show'), 3000);
-        }
-
-        function updateBreadcrumb(path) {
-            const bc = document.getElementById('breadcrumb');
-            bc.innerHTML = '<span onclick="loadFiles(\\'\\')" style="cursor: pointer;">Root</span>';
-            if (path) {
-                const parts = path.split('/');
-                let acc = '';
-                parts.forEach(p => {
-                    acc += (acc ? '/' : '') + p;
-                    bc.innerHTML += ` / <span onclick="loadFiles(\\'${acc}\\')" style="cursor: pointer;">${p}</span>`;
-                });
-            }
-        }
-
-        document.getElementById('confirmBtn').onclick = confirmSelection;
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-            dragStartLine = null;
-        });
-        loadFiles();
-    </script>
-</body>
-</html>"""
+        static_dir = os.path.join(os.path.dirname(__file__), "static")
+        index_path = os.path.join(static_dir, "index.html")
+        try:
+            with open(index_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except FileNotFoundError:
+            return "<html><body><h1>Error: index.html not found in static directory</h1></body></html>"
 
 
 if __name__ == "__main__":

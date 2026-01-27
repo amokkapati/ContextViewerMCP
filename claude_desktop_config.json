@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "context-viewer": {
+      "command": "/Users/adityamokkapati/ContextViewerMCP/venv/bin/python",
+      "args": [
+        "/Users/adityamokkapati/ContextViewerMCP/mcp_server.py"
+      ]
+    }
+  }
+}
