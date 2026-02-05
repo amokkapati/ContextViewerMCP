@@ -11,7 +11,7 @@
 <body>
     <div class="container">
         <div class="sidebar">
-            <div style="font-weight: bold; margin-bottom: 10px; color: #007acc;">Files</div>
+            <div class="sidebar-header">Files</div>
             <div id="fileTree"></div>
         </div>
         <div class="main">
@@ -19,7 +19,7 @@
             <div class="toolbar">
                 <button id="confirmBtn" disabled>✓ Confirm Selection</button>
                 <button id="clearBtn" onclick="clearSelection()">✕ Clear Selection</button>
-                <span id="selectionInfo" style="flex: 1; color: #888;"></span>
+                <span id="selectionInfo" class="selection-info"></span>
             </div>
             <div class="hint">
                 Click to toggle line, shift-click to select a range, drag to select a block.

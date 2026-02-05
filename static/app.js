@@ -6,6 +6,64 @@ let selectedLines = new Set();
 let isDragging = false;
 let dragStartLine = null;
 let lastClickedLine = null;
+let activeTreePath = '';
+let activeTreeIsDir = false;
+
+function getFileBadge(name, isDir) {
+    if (isDir) {
+        return { label: 'DIR', color: '#3a3a40', text: '#f7f7f8' };
+    }
+    const ext = (name.split('.').pop() || '').toLowerCase();
+    const map = {
+        js: { label: 'JS', color: '#f7df1e', text: '#111' },
+        jsx: { label: 'JSX', color: '#61dafb', text: '#0b233a' },
+        ts: { label: 'TS', color: '#3178c6', text: '#f5f7fb' },
+        tsx:{ label: 'TSX', color: '#3178c6', text: '#f5f7fb' },
+        py: { label: 'PY', color: '#3572a5', text: '#f8fbff' },
+        rb: { label: 'RB', color: '#cc342d', text: '#fff' },
+        java:{ label: 'JAVA', color: '#ed8b00', text: '#111' },
+        go: { label: 'GO', color: '#00acd7', text: '#0b1c24' },
+        rs: { label: 'RS', color: '#dea584', text: '#1e120a' },
+        php:{ label: 'PHP', color: '#8892bf', text: '#0d0d15' },
+        cs: { label: 'CS', color: '#9b4f96', text: '#fff' },
+        cpp:{ label: 'C++', color: '#00599c', text: '#e9f2ff' },
+        c:  { label: 'C', color: '#00599c', text: '#e9f2ff' },
+        h:  { label: 'H', color: '#6a737d', text: '#fff' },
+        html:{ label: 'HTML', color: '#e44d26', text: '#fff' },
+        css:{ label: 'CSS', color: '#264de4', text: '#fff' },
+        scss:{ label: 'SCSS', color: '#c6538c', text: '#fff' },
+        json:{ label: 'JSON', color: '#f0ad4e', text: '#111' },
+        yml:{ label: 'YML', color: '#6f42c1', text: '#fff' },
+        yaml:{ label: 'YML', color: '#6f42c1', text: '#fff' },
+        md: { label: 'MD', color: '#4f4f4f', text: '#fff' },
+        txt:{ label: 'TXT', color: '#4f4f4f', text: '#fff' },
+        sh: { label: 'SH', color: '#3c873a', text: '#f5fff4' },
+        bash:{ label: 'SH', color: '#3c873a', text: '#f5fff4' },
+        zsh:{ label: 'SH', color: '#3c873a', text: '#f5fff4' },
+        sql:{ label: 'SQL', color: '#336791', text: '#f8fbff' },
+        pdf:{ label: 'PDF', color: '#d32f2f', text: '#fff' },
+        png:{ label: 'IMG', color: '#607d8b', text: '#fff' },
+        jpg:{ label: 'IMG', color: '#607d8b', text: '#fff' },
+        jpeg:{ label: 'IMG', color: '#607d8b', text: '#fff' },
+        gif:{ label: 'IMG', color: '#607d8b', text: '#fff' },
+        svg:{ label: 'SVG', color: '#ffb300', text: '#111' },
+        tex:{ label: 'TEX', color: '#5c6bc0', text: '#f8f9ff' },
+    };
+    return map[ext] || { label: ext ? ext.toUpperCase().slice(0,4) : 'FILE', color: '#444', text: '#fff' };
+}
+
+function setActiveTreeItem(path, isDir) {
+    activeTreePath = path || '';
+    activeTreeIsDir = !!isDir;
+
+    document.querySelectorAll('#fileTree .file-item').forEach(el => {
+        const elPath = el.dataset.path || '';
+        const elIsDir = el.dataset.isDir === '1';
+        const isActive = elPath === activeTreePath && elIsDir === activeTreeIsDir;
+        el.classList.toggle('active', isActive);
+        el.classList.toggle('open', isActive && elIsDir);
+    });
+}
 
 async function loadFiles(path = '') {
     try {
@@ -14,18 +72,34 @@ async function loadFiles(path = '') {
         const tree = document.getElementById('fileTree');
         tree.innerHTML = '';
         files.forEach(f => {
+            const badge = getFileBadge(f.name, f.is_dir);
             const div = document.createElement('div');
             div.className = 'file-item';
-            div.innerHTML = `<span class="${f.is_dir ? 'folder-icon' : 'file-icon'}"></span>${f.name}`;
+            div.dataset.path = f.path;
+            div.dataset.isDir = f.is_dir ? '1' : '0';
             if (f.is_dir) {
-                div.onclick = () => loadFiles(f.path);
+                div.innerHTML = `<span class="folder-icon">▸</span><span class="name">${f.name}</span>`;
             } else {
-                div.onclick = () => loadFile(f.path, f.name);
+                div.innerHTML = `<span class="file-badge" style="background:${badge.color};color:${badge.text};border:1px solid ${badge.color}">${badge.label}</span><span class="name">${f.name}</span>`;
+            }
+            if (f.is_dir) {
+                div.onclick = () => {
+                    setActiveTreeItem(f.path, true);
+                    loadFiles(f.path);
+                };
+            } else {
+                div.onclick = () => {
+                    setActiveTreeItem(f.path, false);
+                    loadFile(f.path, f.name);
+                };
             }
             tree.appendChild(div);
         });
         updateBreadcrumb(path);
         currentPath = path;
+
+        // Keep the current folder visually "open"/active if applicable
+        if (path) setActiveTreeItem(path, true);
     } catch (e) {
         console.error(e);
     }
@@ -48,6 +122,69 @@ async function loadFile(path, name) {
 }
 
 let currentTexView = 'source';
+
+function getLanguageFromFilename(filename) {
+    const ext = filename.split('.').pop().toLowerCase();
+    const langMap = {
+        'js': 'javascript',
+        'jsx': 'javascript',
+        'ts': 'typescript',
+        'tsx': 'typescript',
+        'py': 'python',
+        'rb': 'ruby',
+        'java': 'java',
+        'c': 'c',
+        'cpp': 'cpp',
+        'cc': 'cpp',
+        'cxx': 'cpp',
+        'h': 'c',
+        'hpp': 'cpp',
+        'cs': 'csharp',
+        'php': 'php',
+        'go': 'go',
+        'rs': 'rust',
+        'swift': 'swift',
+        'kt': 'kotlin',
+        'scala': 'scala',
+        'sh': 'bash',
+        'bash': 'bash',
+        'zsh': 'bash',
+        'fish': 'bash',
+        'ps1': 'powershell',
+        'sql': 'sql',
+        'html': 'xml',
+        'htm': 'xml',
+        'xml': 'xml',
+        'css': 'css',
+        'scss': 'scss',
+        'sass': 'sass',
+        'less': 'less',
+        'json': 'json',
+        'yaml': 'yaml',
+        'yml': 'yaml',
+        'toml': 'toml',
+        'ini': 'ini',
+        'md': 'markdown',
+        'markdown': 'markdown',
+        'tex': 'latex',
+        'latex': 'latex',
+        'r': 'r',
+        'R': 'r',
+        'm': 'objectivec',
+        'mm': 'objectivec',
+        'pl': 'perl',
+        'pm': 'perl',
+        'lua': 'lua',
+        'vim': 'vim',
+        'dockerfile': 'dockerfile',
+        'makefile': 'makefile',
+        'mk': 'makefile',
+        'cmake': 'cmake',
+        'diff': 'diff',
+        'patch': 'diff',
+    };
+    return langMap[ext] || null;
+}
 
 function displayFile(data, name) {
     const content = document.getElementById('content');
@@ -81,13 +218,45 @@ function displayFile(data, name) {
         </div>`;
     }
 
-    html += `<div class="file-preview"><div class="file-name">${name}</div><div id="texContent"><pre><code>`;
-    lines.forEach((line, idx) => {
+    // Detect language and apply syntax highlighting
+    const language = getLanguageFromFilename(name);
+    let highlightedCode = '';
+    
+    if (typeof hljs !== 'undefined') {
+        try {
+            if (language) {
+                // Try specific language first
+                const highlighted = hljs.highlight(data.content, { language: language });
+                highlightedCode = highlighted.value;
+            } else {
+                // Auto-detect language if no mapping found
+                const highlighted = hljs.highlightAuto(data.content);
+                highlightedCode = highlighted.value;
+            }
+        } catch (e) {
+            // Fallback to auto-detection or plain text
+            try {
+                const highlighted = hljs.highlightAuto(data.content);
+                highlightedCode = highlighted.value;
+            } catch (e2) {
+                highlightedCode = escapeHtml(data.content);
+            }
+        }
+    } else {
+        // hljs not available, use plain text
+        highlightedCode = escapeHtml(data.content);
+    }
+
+    // Split highlighted code into lines and wrap each in a div
+    const highlightedLines = highlightedCode.split('\n');
+    
+    html += `<div class="file-preview"><div class="file-name">${name}</div><div id="texContent"><pre><code class="hljs">`;
+    highlightedLines.forEach((line, idx) => {
         const lineNum = idx + 1;
-        const escapedLine = escapeHtml(line) || '&nbsp;';
+        const displayLine = line || '&nbsp;';
         html += `<div class="line" data-line="${lineNum}" onclick="handleLineClick(${lineNum}, event)" style="cursor: pointer;">`;
-        html += `<span style="color: #858585; margin-right: 10px; user-select: none;">${lineNum}</span>`;
-        html += escapedLine;
+        html += `<span class="line-number">${lineNum}</span>`;
+        html += displayLine;
         html += '</div>';
     });
     html += '</code></pre></div></div>';
