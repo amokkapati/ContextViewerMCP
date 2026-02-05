@@ -77,9 +77,6 @@ def start_http_server() -> subprocess.Popen:
         text=True,
     )
 
-    # Give server time to start
-    time.sleep(2)
-
     logger.info(f"HTTP server started at http://localhost:{HTTP_PORT}")
     save_state({"server_url": f"http://localhost:{HTTP_PORT}", "server_pid": HTTP_SERVER_PROCESS.pid})
 
@@ -213,34 +210,9 @@ def render_latex(path: str) -> dict[str, Any]:
 @app.list_resources()
 async def list_resources() -> list[Resource]:
     """List available file resources."""
-    resources = []
-
-    # Add root directory as a resource
-    resources.append(
-        Resource(
-            uri=f"file:///{BASE_DIR}",
-            name="Project Root",
-            mimeType="application/x-directory",
-            description="Root directory of the project",
-        )
-    )
-
-    # List some common file types as resources
-    for pattern in ["**/*.py", "**/*.tex", "**/*.pdf", "**/*.js", "**/*.ts", "**/*.md"]:
-        for file_path in BASE_DIR.glob(pattern):
-            if file_path.is_file() and not any(part.startswith(".") for part in file_path.parts):
-                rel_path = file_path.relative_to(BASE_DIR)
-                mime_type, _ = mimetypes.guess_type(str(file_path))
-                resources.append(
-                    Resource(
-                        uri=f"file:///{rel_path}",
-                        name=str(rel_path),
-                        mimeType=mime_type or "application/octet-stream",
-                        description=f"File: {file_path.name}",
-                    )
-                )
-
-    return resources
+    # Return empty list for instant startup
+    # Users can browse files via the list_files tool or web UI
+    return []
 
 
 @app.read_resource()
@@ -627,8 +599,8 @@ async def main():
     logger.info(f"Base directory: {BASE_DIR}")
 
     try:
-        # Start the HTTP server
-        start_http_server()
+        # HTTP server will start lazily when open_viewer tool is called
+        # This speeds up initial MCP server startup
 
         # Run the MCP server
         async with stdio_server() as (read_stream, write_stream):
