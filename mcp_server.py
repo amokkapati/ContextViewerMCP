@@ -48,17 +48,47 @@ def get_state() -> dict[str, Any]:
         return {}
     try:
         with open(STATE_FILE, "r") as f:
-            return json.load(f)
+            state = json.load(f)
+
+        # Validate state structure
+        if not isinstance(state, dict):
+            logger.warning("Invalid state file format, resetting")
+            return {}
+
+        # Validate selection structure if present
+        if "selection" in state:
+            sel = state["selection"]
+            required_fields = ["file_path", "start_line", "end_line", "selected_text", "timestamp"]
+            if not all(field in sel for field in required_fields):
+                logger.warning("Invalid selection structure, removing")
+                state.pop("selection", None)
+                save_state(state)
+
+        return state
+    except json.JSONDecodeError as e:
+        logger.error(f"Corrupted state file: {e}, resetting")
+        # Backup corrupted file
+        backup_path = STATE_FILE.with_suffix(".json.backup")
+        if STATE_FILE.exists():
+            STATE_FILE.rename(backup_path)
+            logger.info(f"Backed up corrupted state to {backup_path}")
+        return {}
     except Exception as e:
         logger.error(f"Failed to read state: {e}")
         return {}
 
 
 def save_state(state: dict[str, Any]) -> None:
-    """Save state to the state file."""
+    """Save state to the state file atomically."""
     try:
-        with open(STATE_FILE, "w") as f:
+        # Write to temporary file first for atomic operation
+        temp_file = STATE_FILE.with_suffix(".json.tmp")
+        with open(temp_file, "w") as f:
             json.dump(state, f, indent=2)
+
+        # Atomic rename (overwrites existing file)
+        temp_file.replace(STATE_FILE)
+        logger.debug("State saved successfully")
     except Exception as e:
         logger.error(f"Failed to save state: {e}")
 
@@ -298,6 +328,10 @@ async def list_tools() -> list[Tool]:
                         "type": "number",
                         "description": "Maximum time to wait in seconds (default: 60)",
                     },
+                    "clear_after_read": {
+                        "type": "boolean",
+                        "description": "If true, automatically clear the selection after reading (default: true in wait mode, false in immediate mode)",
+                    },
                 },
             },
         ),
@@ -383,17 +417,29 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
         elif name == "get_selection":
             wait = arguments.get("wait", False)
             timeout = arguments.get("timeout", 60)
+            # Default: auto-clear in wait mode, manual clear in immediate mode
+            clear_after_read = arguments.get("clear_after_read", wait)
 
             if wait:
-                # Poll for selection
+                # Polling mode - wait for new selection
                 start_time = time.time()
+                poll_count = 0
+                logger.info(f"Polling for selection (timeout: {timeout}s)")
+
                 while time.time() - start_time < timeout:
                     state = get_state()
                     selection = state.get("selection")
+                    poll_count += 1
+
                     if selection and selection.get("timestamp", 0) > start_time:
-                        # Clear the selection after reading
-                        state.pop("selection", None)
-                        save_state(state)
+                        elapsed = time.time() - start_time
+                        logger.info(f"Selection found after {elapsed:.2f}s ({poll_count} polls)")
+
+                        # Clear the selection after reading if requested
+                        if clear_after_read:
+                            state.pop("selection", None)
+                            save_state(state)
+                            logger.debug("Selection cleared after read")
 
                         return [
                             TextContent(
@@ -405,6 +451,7 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                         ]
                     await asyncio.sleep(0.5)
 
+                logger.info(f"No selection within {timeout}s ({poll_count} polls)")
                 return [
                     TextContent(
                         type="text",
@@ -412,9 +459,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                     )
                 ]
             else:
+                # Immediate mode - return current selection
+                read_start = time.time()
                 state = get_state()
                 selection = state.get("selection")
+                read_time = (time.time() - read_start) * 1000  # ms
+
                 if not selection:
+                    logger.debug(f"No selection available (read time: {read_time:.2f}ms)")
                     return [
                         TextContent(
                             type="text",
@@ -422,6 +474,14 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                             "or use wait=true to wait for a selection.",
                         )
                     ]
+
+                logger.info(f"Selection retrieved in {read_time:.2f}ms")
+
+                # Clear the selection after reading if requested
+                if clear_after_read:
+                    state.pop("selection", None)
+                    save_state(state)
+                    logger.debug("Selection cleared after read")
 
                 return [
                     TextContent(
