@@ -8,6 +8,8 @@ let dragStartLine = null;
 let lastClickedLine = null;
 let activeTreePath = '';
 let activeTreeIsDir = false;
+let lastNavigationTimestamp = 0;
+let navigationPollInterval = null;
 
 function getFileBadge(name, isDir) {
     if (isDir) {
@@ -477,6 +479,130 @@ function updateBreadcrumb(path) {
     }
 }
 
+// Bidirectional Navigation Support
+async function pollNavigationCommands() {
+    try {
+        const res = await fetch('/api/navigation-state');
+        const state = await res.json();
+
+        if (state.navigation && !state.navigation.executed && state.navigation.timestamp > lastNavigationTimestamp) {
+            lastNavigationTimestamp = state.navigation.timestamp;
+            await executeNavigationCommand(state.navigation);
+        }
+    } catch (e) {
+        console.error('Navigation polling error:', e);
+    }
+}
+
+async function executeNavigationCommand(nav) {
+    console.log('Executing navigation command:', nav);
+
+    const filePath = nav.file_path;
+    const fileName = filePath.split('/').pop();
+
+    // Load the file first if not already loaded
+    if (currentFilePath !== filePath) {
+        await loadFile(filePath, fileName);
+        // Wait for file to render
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    let targetLine = null;
+
+    switch (nav.command) {
+        case 'goto_line':
+            targetLine = nav.target;
+            break;
+
+        case 'search_text':
+            targetLine = findTextInFile(nav.target);
+            break;
+
+        case 'find_function':
+            targetLine = findFunctionInFile(nav.target);
+            break;
+    }
+
+    if (targetLine) {
+        navigateToLine(targetLine);
+
+        // Mark navigation as executed
+        await fetch('/api/navigation-executed', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ timestamp: nav.timestamp })
+        });
+    } else {
+        console.warn('Navigation target not found:', nav);
+    }
+}
+
+function navigateToLine(lineNum) {
+    const lineEl = document.querySelector(`[data-line="${lineNum}"]`);
+    if (!lineEl) return;
+
+    // Clear existing selection
+    clearSelection();
+
+    // Highlight the target line
+    selectedLines.add(lineNum);
+    lineEl.classList.add('selected');
+
+    // Scroll to the line (centered in viewport)
+    lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Flash effect to draw attention
+    lineEl.style.animation = 'none';
+    setTimeout(() => {
+        lineEl.style.animation = 'flash 1s ease-in-out';
+    }, 10);
+
+    updateSelectionInfo();
+}
+
+function findTextInFile(searchText) {
+    const searchLower = searchText.toLowerCase();
+    for (let i = 0; i < currentFileLines.length; i++) {
+        if (currentFileLines[i].toLowerCase().includes(searchLower)) {
+            return i + 1; // Line numbers are 1-indexed
+        }
+    }
+    return null;
+}
+
+function findFunctionInFile(funcName) {
+    // Search for function/class definitions
+    const patterns = [
+        new RegExp(`^\\s*def\\s+${funcName}\\s*\\(`, 'i'),           // Python function
+        new RegExp(`^\\s*class\\s+${funcName}\\s*[(:{\n]`, 'i'),     // Python/JS class
+        new RegExp(`^\\s*function\\s+${funcName}\\s*\\(`, 'i'),      // JS function
+        new RegExp(`^\\s*const\\s+${funcName}\\s*=.*=>`, 'i'),       // Arrow function
+        new RegExp(`^\\s*async\\s+function\\s+${funcName}\\s*\\(`, 'i'), // Async function
+    ];
+
+    for (let i = 0; i < currentFileLines.length; i++) {
+        const line = currentFileLines[i];
+        for (const pattern of patterns) {
+            if (pattern.test(line)) {
+                return i + 1; // Line numbers are 1-indexed
+            }
+        }
+    }
+    return null;
+}
+
+function startNavigationPolling() {
+    if (navigationPollInterval) return;
+    navigationPollInterval = setInterval(pollNavigationCommands, 1000); // Poll every second
+}
+
+function stopNavigationPolling() {
+    if (navigationPollInterval) {
+        clearInterval(navigationPollInterval);
+        navigationPollInterval = null;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('confirmBtn').onclick = confirmSelection;
     document.addEventListener('mouseup', () => {
@@ -484,4 +610,5 @@ document.addEventListener('DOMContentLoaded', () => {
         dragStartLine = null;
     });
     loadFiles();
+    startNavigationPolling();
 });

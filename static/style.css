@@ -232,3 +232,9 @@ img.preview-image { max-width: 100%; height: auto; border-radius: 12px; border: 
 *::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); }
 *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 10px; }
 *::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+
+/* Navigation flash animation */
+@keyframes flash {
+  0%, 100% { background: var(--sel); }
+  50% { background: rgba(11, 132, 255, 0.35); box-shadow: 0 0 20px rgba(11, 132, 255, 0.5); }
+}

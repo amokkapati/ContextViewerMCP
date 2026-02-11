@@ -99,16 +99,45 @@ Example:
 Use the refactor-selection prompt with instructions: "convert to async/await"
 ```
 
+#### 5. Bidirectional Navigation
+
+Claude can now command the viewer to navigate to specific locations:
+
+**Navigate to a line:**
+```
+Can you show me line 42 in example.py?
+```
+
+**Find and show text:**
+```
+Show me where "handleUserInput" appears in the code
+```
+
+**Jump to a function:**
+```
+Navigate to the function named processData
+```
+
+The viewer will automatically load the file, scroll to the location, and highlight it with a flash animation.
+
 ### Available MCP Tools
 
 Claude has access to these tools:
 
+**File Operations:**
 - `open_viewer` - Start the web viewer UI
 - `list_files` - List files in a directory
 - `read_file` - Read file contents
 - `render_latex` - Compile a .tex file to PDF
+
+**Selection (User → Claude):**
 - `get_selection` - Get the current selection from the UI
 - `clear_selection` - Clear the selection state
+
+**Bidirectional Navigation (Claude → Viewer):**
+- `navigate_to_line` - Command the viewer to navigate to a specific line
+- `navigate_to_text` - Command the viewer to search for text and navigate to it
+- `navigate_to_function` - Command the viewer to find and navigate to a function/class definition
 
 ### Standalone Usage (without MCP)
 

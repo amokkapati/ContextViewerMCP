@@ -37,11 +37,19 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             self.handle_render_tex_api()
             return
 
+        if self.path == "/api/navigation-state":
+            self.handle_navigation_state_api()
+            return
+
         super().do_GET()
 
     def do_POST(self):
         if self.path == "/api/confirm-selection":
             self.handle_confirm_selection()
+            return
+
+        if self.path == "/api/navigation-executed":
+            self.handle_navigation_executed()
             return
 
         self.send_response(404)
@@ -257,6 +265,56 @@ class FileServerHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+
+    def handle_navigation_state_api(self):
+        """Return current navigation state from state file."""
+        state_file = Path.home() / ".context-viewer-state.json"
+        try:
+            if state_file.exists():
+                with open(state_file, "r") as f:
+                    state = json.load(f)
+            else:
+                state = {}
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(state).encode("utf-8"))
+        except Exception as e:
+            print(f"Error reading navigation state: {e}")
+            self.send_json_response({})
+
+    def handle_navigation_executed(self):
+        """Mark navigation command as executed."""
+        content_length = int(self.headers.get("Content-Length", "0"))
+        post_data = self.rfile.read(content_length)
+        data = json.loads(post_data.decode("utf-8"))
+
+        state_file = Path.home() / ".context-viewer-state.json"
+        try:
+            existing_state = {}
+            if state_file.exists():
+                with open(state_file, "r") as f:
+                    existing_state = json.load(f)
+
+            # Mark navigation as executed if timestamps match
+            if "navigation" in existing_state:
+                if existing_state["navigation"].get("timestamp") == data.get("timestamp"):
+                    existing_state["navigation"]["executed"] = True
+
+                    with open(state_file, "w") as f:
+                        json.dump(existing_state, f, indent=2)
+
+                    print(f"\nNavigation executed: {existing_state['navigation']['command']} to {existing_state['navigation']['file_path']}\n")
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+        except Exception as e:
+            print(f"Error marking navigation as executed: {e}")
+            self.send_response(500)
+            self.end_headers()
 
     def get_html(self):
         static_dir = os.path.join(os.path.dirname(__file__), "static")

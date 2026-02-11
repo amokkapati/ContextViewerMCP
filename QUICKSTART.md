@@ -113,6 +113,26 @@ Claude will:
 4. "Add type hints to the methods"
 ```
 
+### Workflow 5: Bidirectional Navigation (NEW!)
+
+Claude can now navigate the viewer to specific locations automatically:
+
+```
+# In Claude Desktop
+1. "Open the context viewer"
+2. "Show me line 42 in example_code.py"
+   [The viewer automatically loads the file and jumps to line 42]
+3. "Now show me the fibonacci function"
+   [The viewer finds and navigates to the function definition]
+4. "Find where we import json"
+   [The viewer searches and highlights the import statement]
+```
+
+**Navigation commands Claude can use:**
+- Navigate to specific line: "Show me line X in file.py"
+- Search for text: "Find 'handleError' in the code"
+- Jump to function/class: "Navigate to the MyClass definition"
+
 ## Using Prompts
 
 ContextViewer includes pre-built prompts for common tasks:
@@ -193,6 +213,20 @@ Can you compile main.tex to PDF?
 ```
 
 Claude will use the `render_latex` tool and provide a link to view the PDF.
+
+### Navigate to Code
+
+```
+Can you show me line 25 in server.py?
+```
+
+Claude will use the `navigate_to_line` tool to command the viewer to jump to that location.
+
+```
+Can you find the function called "handleRequest"?
+```
+
+Claude will use the `navigate_to_function` tool to locate and navigate to the function definition.
 
 ## Troubleshooting
 

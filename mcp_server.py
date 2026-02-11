@@ -343,6 +343,60 @@ async def list_tools() -> list[Tool]:
                 "properties": {},
             },
         ),
+        Tool(
+            name="navigate_to_line",
+            description="Command the web viewer to navigate to a specific line in a file. The viewer will load the file, scroll to the line, and highlight it.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path (relative to project root)",
+                    },
+                    "line": {
+                        "type": "number",
+                        "description": "Line number to navigate to",
+                    },
+                },
+                "required": ["path", "line"],
+            },
+        ),
+        Tool(
+            name="navigate_to_text",
+            description="Command the web viewer to search for text and navigate to the first occurrence. The viewer will load the file, find the text, scroll to it, and highlight it.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path (relative to project root)",
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Text to search for (can be partial match)",
+                    },
+                },
+                "required": ["path", "text"],
+            },
+        ),
+        Tool(
+            name="navigate_to_function",
+            description="Command the web viewer to find a function/class definition and navigate to it. The viewer will search for 'def function_name' or 'class ClassName' patterns.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path (relative to project root)",
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Function or class name to find",
+                    },
+                },
+                "required": ["path", "name"],
+            },
+        ),
     ]
 
 
@@ -500,6 +554,78 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text="Selection cleared.",
+                )
+            ]
+
+        elif name == "navigate_to_line":
+            path = arguments.get("path")
+            line = arguments.get("line")
+            if not path or line is None:
+                raise ValueError("path and line are required")
+
+            state = get_state()
+            state["navigation"] = {
+                "command": "goto_line",
+                "file_path": path,
+                "target": line,
+                "timestamp": time.time(),
+                "executed": False,
+            }
+            save_state(state)
+            logger.info(f"Navigation command issued: goto line {line} in {path}")
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Navigation command sent: Go to line {line} in {path}\n\n"
+                    f"The web viewer will automatically navigate to this location if it's open.",
+                )
+            ]
+
+        elif name == "navigate_to_text":
+            path = arguments.get("path")
+            text = arguments.get("text")
+            if not path or not text:
+                raise ValueError("path and text are required")
+
+            state = get_state()
+            state["navigation"] = {
+                "command": "search_text",
+                "file_path": path,
+                "target": text,
+                "timestamp": time.time(),
+                "executed": False,
+            }
+            save_state(state)
+            logger.info(f"Navigation command issued: search for '{text}' in {path}")
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Navigation command sent: Search for '{text}' in {path}\n\n"
+                    f"The web viewer will automatically navigate to the first occurrence if it's open.",
+                )
+            ]
+
+        elif name == "navigate_to_function":
+            path = arguments.get("path")
+            name_arg = arguments.get("name")
+            if not path or not name_arg:
+                raise ValueError("path and name are required")
+
+            state = get_state()
+            state["navigation"] = {
+                "command": "find_function",
+                "file_path": path,
+                "target": name_arg,
+                "timestamp": time.time(),
+                "executed": False,
+            }
+            save_state(state)
+            logger.info(f"Navigation command issued: find function/class '{name_arg}' in {path}")
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Navigation command sent: Find function/class '{name_arg}' in {path}\n\n"
+                    f"The web viewer will automatically navigate to the definition if it's open.",
                 )
             ]
 

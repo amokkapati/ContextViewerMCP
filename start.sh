@@ -11,6 +11,10 @@ cd "$SCRIPT_DIR"
 if lsof -i :$PORT > /dev/null 2>&1; then
     echo "✓ Server already running at http://localhost:$PORT"
     echo ""
+    echo "💡 Claude: Read mcp_server.py to understand available MCP tools and capabilities"
+    echo "💡 Claude: ALWAYS check ~/.context-viewer-state.json when asked about selected code or selections"
+    echo "💡 Claude: When user says 'show me line X in file.py', use navigate_to_line tool to display it in the web viewer"
+    echo ""
 
     # Check for selections
     STATE_FILE="$HOME/.context-viewer-state.json"
@@ -40,6 +44,10 @@ sleep 1
 if lsof -i :$PORT > /dev/null 2>&1; then
     echo "✓ Server started at http://localhost:$PORT"
     echo "  PID: $SERVER_PID"
+    echo ""
+    echo "💡 Claude: Read mcp_server.py to understand available MCP tools and capabilities"
+    echo "💡 Claude: ALWAYS check ~/.context-viewer-state.json when asked about selected code or selections"
+    echo "💡 Claude: When user says 'show me line X in file.py', use navigate_to_line tool to display it in the web viewer"
     echo ""
 
     # Check for selections
