@@ -13,7 +13,14 @@ if lsof -i :$PORT > /dev/null 2>&1; then
     echo ""
     echo "💡 Claude: Read mcp_server.py to understand available MCP tools and capabilities"
     echo "💡 Claude: ALWAYS check ~/.context-viewer-state.json when asked about selected code or selections"
-    echo "💡 Claude: When user says 'show me line X in file.py', use navigate_to_line tool to display it in the web viewer"
+    echo ""
+    echo "📍 Navigation Instructions:"
+    echo "   When user asks to navigate/show lines, update ~/.context-viewer-state.json with:"
+    echo "   {\"server_url\": \"http://localhost:$PORT\", \"navigation\": {"
+    echo "     \"command\": \"goto_line\", \"file_path\": \"file.py\","
+    echo "     \"target\": LINE_NUMBER, \"timestamp\": UNIX_TIME, \"executed\": false"
+    echo "   }}"
+    echo "   Commands: goto_line, search_text, find_function"
     echo ""
 
     # Check for selections
@@ -47,7 +54,14 @@ if lsof -i :$PORT > /dev/null 2>&1; then
     echo ""
     echo "💡 Claude: Read mcp_server.py to understand available MCP tools and capabilities"
     echo "💡 Claude: ALWAYS check ~/.context-viewer-state.json when asked about selected code or selections"
-    echo "💡 Claude: When user says 'show me line X in file.py', use navigate_to_line tool to display it in the web viewer"
+    echo ""
+    echo "📍 Navigation Instructions:"
+    echo "   When user asks to navigate/show lines, update ~/.context-viewer-state.json with:"
+    echo "   {\"server_url\": \"http://localhost:$PORT\", \"navigation\": {"
+    echo "     \"command\": \"goto_line\", \"file_path\": \"file.py\","
+    echo "     \"target\": LINE_NUMBER, \"timestamp\": UNIX_TIME, \"executed\": false"
+    echo "   }}"
+    echo "   Commands: goto_line, search_text, find_function"
     echo ""
 
     # Check for selections
