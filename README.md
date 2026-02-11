@@ -2,6 +2,68 @@
 
 Interactive document visualization via MCP (Model Context Protocol). Enables Claude and other AI assistants to work with documents and code files through a visual selection interface.
 
+## Quick Start
+
+The easiest way to run ContextViewer is using the `start.sh` script:
+
+### Prerequisites
+
+To run `start.sh`, you need:
+
+1. **Python 3** - Check if installed:
+   ```bash
+   python3 --version
+   ```
+   If not installed:
+   - **macOS:** `brew install python3` or download from [python.org](https://www.python.org/downloads/)
+   - **Linux:** `sudo apt-get install python3` (Ubuntu/Debian) or `sudo yum install python3` (RHEL/CentOS)
+
+2. **pip** (Python package manager) - Usually comes with Python 3:
+   ```bash
+   pip3 --version
+   ```
+
+3. **MCP SDK** - Install the Python MCP library:
+   ```bash
+   pip install -r requirements.txt
+   ```
+   Or directly:
+   ```bash
+   pip install mcp
+   ```
+
+4. **Standard Unix tools** (included by default on macOS/Linux):
+   - `bash` - Shell to run the script
+   - `lsof` - To check if server is already running
+   - `grep` - To parse state files
+
+### Running the Server
+
+Once prerequisites are installed:
+
+```bash
+# Make the script executable (first time only)
+chmod +x start.sh
+
+# Start the server on default port (8765)
+./start.sh
+
+# Or specify a custom port
+./start.sh 3000
+```
+
+The script will:
+- Check if a server is already running
+- Start the server if needed
+- Display the URL to open in your browser (e.g., `http://localhost:8765`)
+- Show any existing text selections
+
+### Stopping the Server
+
+```bash
+./stop.sh
+```
+
 ## Features
 
 - **Web-based viewer** for documents and code files with syntax highlighting
