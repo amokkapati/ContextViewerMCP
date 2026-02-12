@@ -252,16 +252,13 @@ function displayFile(data, name) {
     // Split highlighted code into lines and wrap each in a div
     const highlightedLines = highlightedCode.split('\n');
     
-    html += `<div class="file-preview"><div class="file-name">${name}</div><div id="texContent"><pre><code class="hljs">`;
+    html += `<div class="file-preview"><div class="file-name">${name}</div><div id="texContent" style="background: #151515; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.4); overflow: hidden;">`;
     highlightedLines.forEach((line, idx) => {
         const lineNum = idx + 1;
-        const displayLine = line || '&nbsp;';
-        html += `<div class="line" data-line="${lineNum}" onclick="handleLineClick(${lineNum}, event)" style="cursor: pointer;">`;
-        html += `<span class="line-number">${lineNum}</span>`;
-        html += displayLine;
-        html += '</div>';
+        const displayLine = line || '';
+        html += `<div class="line" data-line="${lineNum}" onclick="handleLineClick(${lineNum}, event)" style="cursor: pointer;"><span class="line-number">${lineNum}</span><span class="line-content">${displayLine}</span></div>`;
     });
-    html += '</code></pre></div></div>';
+    html += '</div></div>';
     content.innerHTML = html;
 
     const lineEls = content.querySelectorAll('.line');

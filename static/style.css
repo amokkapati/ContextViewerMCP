@@ -174,7 +174,15 @@ body {
   border-top: 1px solid rgba(255,255,255,0.05);
   border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-
+.line-content { 
+  display: inline; 
+  line-height: 1.6; 
+  white-space: pre;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+}
 .content { flex: 1; overflow: auto; padding: 16px; min-width: 0; }
 
 /* Code view */
