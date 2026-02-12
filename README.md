@@ -11,23 +11,30 @@ The easiest way to run ContextViewer is using the `start.sh` script:
 To run `start.sh`, you need:
 
 1. **Python 3** - Check if installed:
+
    ```bash
    python3 --version
    ```
+
    If not installed:
+
    - **macOS:** `brew install python3` or download from [python.org](https://www.python.org/downloads/)
    - **Linux:** `sudo apt-get install python3` (Ubuntu/Debian) or `sudo yum install python3` (RHEL/CentOS)
 
 2. **pip** (Python package manager) - Usually comes with Python 3:
+
    ```bash
    pip3 --version
    ```
 
 3. **MCP SDK** - Install the Python MCP library:
+
    ```bash
    pip install -r requirements.txt
    ```
+
    Or directly:
+
    ```bash
    pip install mcp
    ```
@@ -53,6 +60,7 @@ chmod +x start.sh
 ```
 
 The script will:
+
 - Check if a server is already running
 - Start the server if needed
 - Display the URL to open in your browser (e.g., `http://localhost:8765`)
@@ -101,9 +109,7 @@ Add this to your config (update the path to match your installation):
   "mcpServers": {
     "context-viewer": {
       "command": "python3",
-      "args": [
-        "/Users/YOUR_USERNAME/ContextViewerMCP/mcp_server.py"
-      ]
+      "args": ["/Users/YOUR_USERNAME/ContextViewerMCP/mcp_server.py"]
     }
   }
 }
@@ -117,11 +123,18 @@ After updating the config, restart Claude Desktop for the changes to take effect
 
 ### Using with Claude Desktop
 
+Upon starting the claude code terminal, type the following command:
+
+```
+run start.sh
+```
+
 Once configured, Claude can use the following capabilities:
 
 #### 1. Open the Viewer
 
 Ask Claude to open the viewer:
+
 ```
 Can you open the context viewer?
 ```
@@ -131,6 +144,7 @@ Claude will provide a URL (e.g., `http://localhost:8765`). Open this in your bro
 #### 2. Browse and Select Files
 
 In the web UI:
+
 - Click files in the sidebar to view them
 - Click lines to select them (hold Shift for range selection)
 - Drag to select multiple lines
@@ -141,6 +155,7 @@ In the web UI:
 #### 3. Ask Claude About Selections
 
 After making a selection, ask Claude:
+
 ```
 What does this code do?
 Can you refactor this to be more efficient?
@@ -152,11 +167,13 @@ Claude will automatically access your selection using the `get_selection` tool.
 #### 4. Using Prompts
 
 Claude has access to pre-built prompts:
+
 - **analyze-selection** - Analyze selected code or text
 - **refactor-selection** - Refactor code with instructions
 - **explain-latex** - Explain LaTeX document sections
 
 Example:
+
 ```
 Use the refactor-selection prompt with instructions: "convert to async/await"
 ```
@@ -166,16 +183,19 @@ Use the refactor-selection prompt with instructions: "convert to async/await"
 Claude can now command the viewer to navigate to specific locations:
 
 **Navigate to a line:**
+
 ```
 Can you show me line 42 in example.py?
 ```
 
 **Find and show text:**
+
 ```
 Show me where "handleUserInput" appears in the code
 ```
 
 **Jump to a function:**
+
 ```
 Navigate to the function named processData
 ```
@@ -187,16 +207,19 @@ The viewer will automatically load the file, scroll to the location, and highlig
 Claude has access to these tools:
 
 **File Operations:**
+
 - `open_viewer` - Start the web viewer UI
 - `list_files` - List files in a directory
 - `read_file` - Read file contents
 - `render_latex` - Compile a .tex file to PDF
 
 **Selection (User → Claude):**
+
 - `get_selection` - Get the current selection from the UI
 - `clear_selection` - Clear the selection state
 
 **Bidirectional Navigation (Claude → Viewer):**
+
 - `navigate_to_line` - Command the viewer to navigate to a specific line
 - `navigate_to_text` - Command the viewer to search for text and navigate to it
 - `navigate_to_function` - Command the viewer to find and navigate to a function/class definition
@@ -310,6 +333,7 @@ Selections are synchronized via a JSON state file at `~/.context-viewer-state.js
 Contributions are welcome! This project is part of a UCSC research project on interactive document visualization for AI assistants.
 
 ### Team
+
 - Aditya Mokkapati (amokkapa@ucsc.edu)
 - Anish Nutakki (annutakk@ucsc.edu)
 
