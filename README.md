@@ -328,10 +328,6 @@ Selections are synchronized via a JSON state file at `~/.context-viewer-state.js
 2. Check that `~/.context-viewer-state.json` exists and contains your selection
 3. Try using `get_selection` tool with `wait: true`
 
-## Contributing
-
-Contributions are welcome! This project is part of a UCSC research project on interactive document visualization for AI assistants.
-
 ### Team
 
 - Aditya Mokkapati (amokkapa@ucsc.edu)
