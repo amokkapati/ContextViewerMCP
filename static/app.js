@@ -100,7 +100,6 @@ async function loadFiles(path = '') {
         updateBreadcrumb(path);
         currentPath = path;
 
-        // Keep the current folder visually "open"/active if applicable
         if (path) setActiveTreeItem(path, true);
     } catch (e) {
         console.error(e);
@@ -124,6 +123,21 @@ async function loadFile(path, name) {
 }
 
 let currentTexView = 'source';
+let pdfJsLoaded = false;
+
+async function ensurePdfJs() {
+    if (pdfJsLoaded) return;
+    await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        script.onload = resolve;
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfJsLoaded = true;
+}
 
 function getLanguageFromFilename(filename) {
     const ext = filename.split('.').pop().toLowerCase();
@@ -197,7 +211,7 @@ function displayFile(data, name) {
         if (mime.startsWith('image/')) {
             content.innerHTML = `<div class="file-name">${name}</div><img class="preview-image" src="${data.file_url}" alt="${name}">`;
         } else if (mime === 'application/pdf') {
-            content.innerHTML = `<div class="file-name">${name}</div><iframe class="preview-frame" src="${data.file_url}"></iframe>`;
+            displayPdf(name, data.file_url);
         } else {
             content.innerHTML = `<div class="file-name">${name}</div><div class="binary-file">Preview not supported. <a href="${data.file_url}" style="color:#4aa3ff;">Download</a></div>`;
         }
@@ -220,23 +234,19 @@ function displayFile(data, name) {
         </div>`;
     }
 
-    // Detect language and apply syntax highlighting
     const language = getLanguageFromFilename(name);
     let highlightedCode = '';
-    
+
     if (typeof hljs !== 'undefined') {
         try {
             if (language) {
-                // Try specific language first
                 const highlighted = hljs.highlight(data.content, { language: language });
                 highlightedCode = highlighted.value;
             } else {
-                // Auto-detect language if no mapping found
                 const highlighted = hljs.highlightAuto(data.content);
                 highlightedCode = highlighted.value;
             }
         } catch (e) {
-            // Fallback to auto-detection or plain text
             try {
                 const highlighted = hljs.highlightAuto(data.content);
                 highlightedCode = highlighted.value;
@@ -245,13 +255,11 @@ function displayFile(data, name) {
             }
         }
     } else {
-        // hljs not available, use plain text
         highlightedCode = escapeHtml(data.content);
     }
 
-    // Split highlighted code into lines and wrap each in a div
     const highlightedLines = highlightedCode.split('\n');
-    
+
     html += `<div class="file-preview"><div class="file-name">${name}</div><div id="texContent" style="background: #151515; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.4); overflow: hidden;">`;
     highlightedLines.forEach((line, idx) => {
         const lineNum = idx + 1;
@@ -282,6 +290,131 @@ function displayFile(data, name) {
         });
     });
 }
+
+// ─── PDF viewer ───────────────────────────────────────────────────────────────
+
+async function displayPdf(name, fileUrl) {
+    const content = document.getElementById('content');
+    content.innerHTML = `
+        <div class="file-name">${name}</div>
+        <div class="tex-toolbar">
+            <button id="pdfPreviewBtn" class="active" onclick="showPdfPreview()">Preview</button>
+            <button id="pdfLinesBtn" onclick="showPdfLines()">Select Lines</button>
+        </div>
+        <div id="pdfBody"></div>`;
+
+    // stash url/name for tab switching
+    content.dataset.pdfUrl  = fileUrl;
+    content.dataset.pdfName = name;
+
+    _renderPdfIframe(fileUrl);
+}
+
+function showPdfPreview() {
+    const content = document.getElementById('content');
+    document.getElementById('pdfPreviewBtn').classList.add('active');
+    document.getElementById('pdfLinesBtn').classList.remove('active');
+    clearSelection();
+    _renderPdfIframe(content.dataset.pdfUrl);
+}
+
+async function showPdfLines() {
+    const content = document.getElementById('content');
+    document.getElementById('pdfLinesBtn').classList.add('active');
+    document.getElementById('pdfPreviewBtn').classList.remove('active');
+
+    const pdfBody = document.getElementById('pdfBody');
+    pdfBody.innerHTML = '<div class="tex-loading">Extracting text…</div>';
+
+    try {
+        await ensurePdfJs();
+        const pdf = await pdfjsLib.getDocument(content.dataset.pdfUrl).promise;
+
+        let allLines = [];
+
+        for (let p = 1; p <= pdf.numPages; p++) {
+            // Insert a page-separator line for every page after the first
+            if (p > 1) {
+                allLines.push(`── Page ${p} ──`);
+            }
+
+            const page        = await pdf.getPage(p);
+            const textContent = await page.getTextContent();
+
+            // Bucket text items by rounded y-coordinate to group into visual lines
+            const bucket = {};
+            for (const item of textContent.items) {
+                if (!item.str || !item.str.trim()) continue;
+                const y = Math.round(item.transform[5] / 2) * 2;
+                if (!bucket[y]) bucket[y] = [];
+                bucket[y].push(item);
+            }
+
+            // Sort buckets top-to-bottom (PDF y-coords increase upward)
+            const sortedYs = Object.keys(bucket)
+                .map(Number)
+                .sort((a, b) => b - a);
+
+            for (const y of sortedYs) {
+                const lineText = bucket[y]
+                    .sort((a, b) => a.transform[4] - b.transform[4])  // left-to-right
+                    .map(i => i.str)
+                    .join(' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                if (lineText) allLines.push(lineText);
+            }
+        }
+
+        // Expose to the rest of the app so confirmSelection / copy work unchanged
+        currentFileLines = allLines;
+
+        let html = `<div id="texContent" style="background:#151515;border-radius:12px;border:1px solid rgba(255,255,255,0.05);box-shadow:0 10px 30px rgba(0,0,0,0.4);overflow:hidden;">`;
+        allLines.forEach((line, idx) => {
+            const lineNum = idx + 1;
+            const escaped = escapeHtml(line);
+            const isSep   = line.startsWith('──');
+            const sepStyle = isSep
+                ? 'opacity:0.35;font-style:italic;pointer-events:none;user-select:none;'
+                : '';
+            html += `<div class="line" data-line="${lineNum}" onclick="handleLineClick(${lineNum}, event)" style="cursor:pointer;${sepStyle}"><span class="line-number">${lineNum}</span><span class="line-content">${escaped}</span></div>`;
+        });
+        html += '</div>';
+        pdfBody.innerHTML = html;
+
+        // Wire up drag-selection (mirrors the code-viewer logic in displayFile)
+        pdfBody.querySelectorAll('.line').forEach(el => {
+            el.addEventListener('mousedown', e => {
+                const ln = parseInt(el.dataset.line, 10);
+                if (isNaN(ln)) return;
+                if (!e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) clearSelection();
+                isDragging     = true;
+                dragStartLine  = ln;
+                setRangeSelection(ln, ln, true);
+                e.preventDefault();
+            });
+            el.addEventListener('mouseover', () => {
+                if (!isDragging || dragStartLine === null) return;
+                const ln = parseInt(el.dataset.line, 10);
+                if (!isNaN(ln)) setRangeSelection(dragStartLine, ln, true);
+            });
+        });
+
+        selectedLines.clear();
+        lastClickedLine = null;
+        updateSelectionInfo();
+
+    } catch (e) {
+        pdfBody.innerHTML = `<div class="tex-error">Failed to extract PDF text: ${escapeHtml(e.message)}</div>`;
+    }
+}
+
+function _renderPdfIframe(url) {
+    document.getElementById('pdfBody').innerHTML =
+        `<iframe class="preview-frame" src="${url}"></iframe>`;
+}
+
+// ─── Line interaction ─────────────────────────────────────────────────────────
 
 function handleLineClick(lineNum, event) {
     event.stopPropagation();
@@ -330,7 +463,7 @@ function toggleLine(lineNum) {
 
 function setRangeSelection(start, end, replace) {
     const from = Math.min(start, end);
-    const to = Math.max(start, end);
+    const to   = Math.max(start, end);
     if (replace) {
         clearSelection();
     }
@@ -347,7 +480,7 @@ function setRangeSelection(start, end, replace) {
 function selectParagraph(lineNum) {
     if (!currentFileLines.length) return;
     let start = lineNum;
-    let end = lineNum;
+    let end   = lineNum;
     while (start > 1 && currentFileLines[start - 2].trim() !== '') {
         start -= 1;
     }
@@ -363,39 +496,31 @@ function selectIndentBlock(lineNum) {
     if (lineText.trim() === '') return;
     const baseIndent = lineText.match(/^\s*/)[0].length;
     let start = lineNum;
-    let end = lineNum;
+    let end   = lineNum;
     while (start > 1) {
         const prev = currentFileLines[start - 2];
-        if (prev.trim() === '') {
-            start -= 1;
-            continue;
-        }
-        const indent = prev.match(/^\s*/)[0].length;
-        if (indent < baseIndent) break;
+        if (prev.trim() === '') { start -= 1; continue; }
+        if (prev.match(/^\s*/)[0].length < baseIndent) break;
         start -= 1;
     }
     while (end < currentFileLines.length) {
         const next = currentFileLines[end];
-        if (next.trim() === '') {
-            end += 1;
-            continue;
-        }
-        const indent = next.match(/^\s*/)[0].length;
-        if (indent < baseIndent) break;
+        if (next.trim() === '') { end += 1; continue; }
+        if (next.match(/^\s*/)[0].length < baseIndent) break;
         end += 1;
     }
     setRangeSelection(start, end, true);
 }
 
 function updateSelectionInfo() {
-    const btn = document.getElementById('confirmBtn');
+    const btn  = document.getElementById('confirmBtn');
     const info = document.getElementById('selectionInfo');
     if (selectedLines.size === 0) {
-        btn.disabled = true;
+        btn.disabled    = true;
         info.textContent = '';
     } else {
-        btn.disabled = false;
-        const sorted = Array.from(selectedLines).sort((a, b) => a - b);
+        btn.disabled    = false;
+        const sorted    = Array.from(selectedLines).sort((a, b) => a - b);
         info.textContent = `${selectedLines.size} line(s) selected (${sorted[0]}-${sorted[sorted.length - 1]})`;
     }
 }
@@ -409,6 +534,8 @@ function clearSelection() {
     lastClickedLine = null;
     updateSelectionInfo();
 }
+
+// ─── LaTeX viewer ─────────────────────────────────────────────────────────────
 
 function showTexSource() {
     if (currentTexView === 'source') return;
@@ -428,7 +555,7 @@ async function renderTexFile() {
     texContent.innerHTML = '<div class="tex-loading">Compiling LaTeX...</div>';
 
     try {
-        const res = await fetch('/api/render-tex/' + currentFilePath);
+        const res  = await fetch('/api/render-tex/' + currentFilePath);
         const data = await res.json();
 
         if (data.success) {
@@ -441,19 +568,21 @@ async function renderTexFile() {
     }
 }
 
+// ─── Confirm / send selection ─────────────────────────────────────────────────
+
 async function confirmSelection() {
     if (selectedLines.size === 0) return;
 
-    const lines = Array.from(selectedLines).sort((a, b) => a - b);
+    const lines        = Array.from(selectedLines).sort((a, b) => a - b);
     const selectedText = lines.map(ln => currentFileLines[ln - 1] ?? '').join('\n');
 
     await fetch('/api/confirm-selection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            file_path: currentFilePath || currentFile,
-            start_line: lines[0],
-            end_line: lines[lines.length - 1],
+            file_path:     currentFilePath || currentFile,
+            start_line:    lines[0],
+            end_line:      lines[lines.length - 1],
             selected_text: selectedText
         })
     });
@@ -462,6 +591,8 @@ async function confirmSelection() {
     bar.classList.add('show');
     setTimeout(() => bar.classList.remove('show'), 3000);
 }
+
+// ─── Breadcrumb ───────────────────────────────────────────────────────────────
 
 function updateBreadcrumb(path) {
     const bc = document.getElementById('breadcrumb');
@@ -476,10 +607,11 @@ function updateBreadcrumb(path) {
     }
 }
 
-// Bidirectional Navigation Support
+// ─── Bidirectional navigation polling ────────────────────────────────────────
+
 async function pollNavigationCommands() {
     try {
-        const res = await fetch('/api/navigation-state');
+        const res   = await fetch('/api/navigation-state');
         const state = await res.json();
 
         if (state.navigation && !state.navigation.executed && state.navigation.timestamp > lastNavigationTimestamp) {
@@ -497,10 +629,8 @@ async function executeNavigationCommand(nav) {
     const filePath = nav.file_path;
     const fileName = filePath.split('/').pop();
 
-    // Load the file first if not already loaded
     if (currentFilePath !== filePath) {
         await loadFile(filePath, fileName);
-        // Wait for file to render
         await new Promise(resolve => setTimeout(resolve, 100));
     }
 
@@ -510,11 +640,9 @@ async function executeNavigationCommand(nav) {
         case 'goto_line':
             targetLine = nav.target;
             break;
-
         case 'search_text':
             targetLine = findTextInFile(nav.target);
             break;
-
         case 'find_function':
             targetLine = findFunctionInFile(nav.target);
             break;
@@ -523,7 +651,6 @@ async function executeNavigationCommand(nav) {
     if (targetLine) {
         navigateToLine(targetLine);
 
-        // Mark navigation as executed
         await fetch('/api/navigation-executed', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -538,17 +665,12 @@ function navigateToLine(lineNum) {
     const lineEl = document.querySelector(`[data-line="${lineNum}"]`);
     if (!lineEl) return;
 
-    // Clear existing selection
     clearSelection();
 
-    // Highlight the target line
     selectedLines.add(lineNum);
     lineEl.classList.add('selected');
-
-    // Scroll to the line (centered in viewport)
     lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    // Flash effect to draw attention
     lineEl.style.animation = 'none';
     setTimeout(() => {
         lineEl.style.animation = 'flash 1s ease-in-out';
@@ -561,27 +683,26 @@ function findTextInFile(searchText) {
     const searchLower = searchText.toLowerCase();
     for (let i = 0; i < currentFileLines.length; i++) {
         if (currentFileLines[i].toLowerCase().includes(searchLower)) {
-            return i + 1; // Line numbers are 1-indexed
+            return i + 1;
         }
     }
     return null;
 }
 
 function findFunctionInFile(funcName) {
-    // Search for function/class definitions
     const patterns = [
-        new RegExp(`^\\s*def\\s+${funcName}\\s*\\(`, 'i'),           // Python function
-        new RegExp(`^\\s*class\\s+${funcName}\\s*[(:{\n]`, 'i'),     // Python/JS class
-        new RegExp(`^\\s*function\\s+${funcName}\\s*\\(`, 'i'),      // JS function
-        new RegExp(`^\\s*const\\s+${funcName}\\s*=.*=>`, 'i'),       // Arrow function
-        new RegExp(`^\\s*async\\s+function\\s+${funcName}\\s*\\(`, 'i'), // Async function
+        new RegExp(`^\\s*def\\s+${funcName}\\s*\\(`, 'i'),
+        new RegExp(`^\\s*class\\s+${funcName}\\s*[(:{\n]`, 'i'),
+        new RegExp(`^\\s*function\\s+${funcName}\\s*\\(`, 'i'),
+        new RegExp(`^\\s*const\\s+${funcName}\\s*=.*=>`, 'i'),
+        new RegExp(`^\\s*async\\s+function\\s+${funcName}\\s*\\(`, 'i'),
     ];
 
     for (let i = 0; i < currentFileLines.length; i++) {
         const line = currentFileLines[i];
         for (const pattern of patterns) {
             if (pattern.test(line)) {
-                return i + 1; // Line numbers are 1-indexed
+                return i + 1;
             }
         }
     }
@@ -590,7 +711,7 @@ function findFunctionInFile(funcName) {
 
 function startNavigationPolling() {
     if (navigationPollInterval) return;
-    navigationPollInterval = setInterval(pollNavigationCommands, 1000); // Poll every second
+    navigationPollInterval = setInterval(pollNavigationCommands, 1000);
 }
 
 function stopNavigationPolling() {
@@ -600,10 +721,12 @@ function stopNavigationPolling() {
     }
 }
 
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('confirmBtn').onclick = confirmSelection;
     document.addEventListener('mouseup', () => {
-        isDragging = false;
+        isDragging    = false;
         dragStartLine = null;
     });
     loadFiles();
