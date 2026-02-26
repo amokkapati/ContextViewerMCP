@@ -38,8 +38,19 @@ app = Server("context-viewer")
 # State management
 STATE_FILE = Path.home() / ".context-viewer-state.json"
 HTTP_SERVER_PROCESS = None
-BASE_DIR = Path.cwd()
 HTTP_PORT = 8765
+
+# Resolve the directory to serve from --serve-dir arg (or cwd as fallback)
+def _resolve_serve_dir() -> Path:
+    import argparse
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--serve-dir", default=None)
+    args, _ = parser.parse_known_args()
+    if args.serve_dir:
+        return Path(args.serve_dir).resolve()
+    return Path.cwd()
+
+BASE_DIR = _resolve_serve_dir()
 
 
 def get_state() -> dict[str, Any]:
@@ -100,8 +111,9 @@ def start_http_server() -> subprocess.Popen:
         return HTTP_SERVER_PROCESS
 
     logger.info(f"Starting HTTP server on port {HTTP_PORT}")
+    server_script = Path(__file__).parent / "server.py"
     HTTP_SERVER_PROCESS = subprocess.Popen(
-        [sys.executable, str(BASE_DIR / "server.py"), str(HTTP_PORT)],
+        [sys.executable, str(server_script), str(HTTP_PORT), "--serve-dir", str(BASE_DIR)],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,

@@ -1,0 +1,223 @@
+#!/usr/bin/env bash
+# contextviewermcp — ContextViewerMCP CLI
+# Serves files from the current working directory, not the install directory.
+
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "${BASH_SOURCE[0]:-$0}")")" && pwd)"
+VENV_PYTHON="$SCRIPT_DIR/venv/bin/python"
+SERVE_DIR="$(pwd)"
+PORT="${PORT:-8765}"
+STATE_FILE="$HOME/.context-viewer-state.json"
+
+_check_venv() {
+    if [ ! -x "$VENV_PYTHON" ]; then
+        echo "✗ Python venv not found at $SCRIPT_DIR/venv"
+        echo "  Run the installer first:"
+        echo "  curl -fsSL https://raw.githubusercontent.com/amokkapati/ContextViewerMCP/main/scripts/install.sh | sh"
+        exit 1
+    fi
+}
+
+usage() {
+    cat <<'EOF'
+Usage: contextviewermcp <command> [options]
+
+Commands:
+  start [port]             Start the viewer (serves files from current directory)
+  stop [port]              Stop the running server
+  status [port]            Show server status and current selection
+  selection                Print the current text selection
+  --setup claudecode       Create .mcp.json for Claude Code MCP integration
+  --setup claudedesktop    Update Claude Desktop config
+
+Options:
+  -h, --help               Show this help message
+
+Examples:
+  cd ~/myproject && contextviewermcp start
+  contextviewermcp --setup claudecode
+  contextviewermcp selection
+EOF
+}
+
+cmd_start() {
+    local port="${1:-$PORT}"
+    _check_venv
+
+    if lsof -i ":$port" > /dev/null 2>&1; then
+        echo "✓ Server already running at http://localhost:$port"
+        echo "  Serving: $SERVE_DIR"
+        _show_state "$port"
+        exit 0
+    fi
+
+    echo "Starting ContextViewer..."
+    echo "  Directory : $SERVE_DIR"
+    echo "  URL       : http://localhost:$port"
+
+    "$VENV_PYTHON" "$SCRIPT_DIR/server.py" "$port" --serve-dir "$SERVE_DIR" \
+        > /tmp/contextviewermcp-server.log 2>&1 &
+    local pid=$!
+    sleep 1
+
+    if lsof -i ":$port" > /dev/null 2>&1; then
+        echo "✓ Server started (PID: $pid)"
+        _show_state "$port"
+        echo ""
+        echo "To stop: contextviewermcp stop $port"
+    else
+        echo "✗ Failed to start server. Check /tmp/contextviewermcp-server.log"
+        exit 1
+    fi
+}
+
+cmd_stop() {
+    local port="${1:-$PORT}"
+
+    if lsof -i ":$port" > /dev/null 2>&1; then
+        local pid
+        pid="$(lsof -ti ":$port")"
+        kill "$pid"
+        echo "✓ Stopped server on port $port (PID: $pid)"
+    else
+        echo "No server running on port $port"
+    fi
+
+    echo "{}" > "$STATE_FILE"
+    echo "✓ Reset state"
+}
+
+cmd_status() {
+    local port="${1:-$PORT}"
+
+    if lsof -i ":$port" > /dev/null 2>&1; then
+        echo "✓ Server running at http://localhost:$port"
+    else
+        echo "✗ No server running on port $port"
+    fi
+    _show_state "$port"
+}
+
+cmd_selection() {
+    if [ ! -f "$STATE_FILE" ]; then
+        echo "No selection available. Open the viewer and select some text."
+        exit 1
+    fi
+
+    python3 - <<PYEOF
+import json, sys
+with open("$STATE_FILE") as f:
+    state = json.load(f)
+sel = state.get("selection")
+if sel:
+    print(f"File: {sel['file_path']}")
+    print(f"Lines: {sel['start_line']}-{sel['end_line']}\n")
+    print(sel["selected_text"])
+else:
+    print("No selection available")
+PYEOF
+}
+
+cmd_setup_claudecode() {
+    local mcp_json="$SERVE_DIR/.mcp.json"
+
+    cat > "$mcp_json" <<EOF
+{
+  "mcpServers": {
+    "context-viewer": {
+      "command": "$VENV_PYTHON",
+      "args": ["$SCRIPT_DIR/mcp_server.py", "--serve-dir", "$SERVE_DIR"]
+    }
+  }
+}
+EOF
+
+    echo "✓ Created $mcp_json"
+    echo ""
+    echo "Claude Code will load the context-viewer MCP server when you open this directory."
+    echo "Start the viewer server:"
+    echo ""
+    echo "  contextviewermcp start"
+}
+
+cmd_setup_claudedesktop() {
+    local config_file
+    case "$(uname)" in
+        Darwin) config_file="$HOME/Library/Application Support/Claude/claude_desktop_config.json" ;;
+        *)      config_file="$HOME/.config/Claude/claude_desktop_config.json" ;;
+    esac
+
+    if [ -f "$config_file" ]; then
+        echo "⚠ Claude Desktop config already exists at:"
+        echo "  $config_file"
+        echo ""
+        echo "Merge this into the mcpServers section:"
+        echo ""
+        echo '  "context-viewer": {'
+        echo "    \"command\": \"$VENV_PYTHON\","
+        echo "    \"args\": [\"$SCRIPT_DIR/mcp_server.py\", \"--serve-dir\", \"$SERVE_DIR\"]"
+        echo '  }'
+    else
+        mkdir -p "$(dirname "$config_file")"
+        cat > "$config_file" <<EOF
+{
+  "mcpServers": {
+    "context-viewer": {
+      "command": "$VENV_PYTHON",
+      "args": ["$SCRIPT_DIR/mcp_server.py", "--serve-dir", "$SERVE_DIR"]
+    }
+  }
+}
+EOF
+        echo "✓ Created $config_file"
+        echo "Restart Claude Desktop to apply changes."
+    fi
+}
+
+_show_state() {
+    local port="${1:-$PORT}"
+    echo ""
+    if [ -f "$STATE_FILE" ] && python3 -c "
+import json, sys
+try:
+    d = json.load(open('$STATE_FILE'))
+    sys.exit(0 if d.get('selection') else 1)
+except Exception:
+    sys.exit(1)
+" 2>/dev/null; then
+        python3 - <<PYEOF
+import json
+with open("$STATE_FILE") as f:
+    s = json.load(f).get("selection", {})
+print(f"  Selection : {s.get('file_path','')}:{s.get('start_line','')}-{s.get('end_line','')}")
+PYEOF
+    else
+        echo "  No selection yet — select code in the browser to analyze"
+    fi
+}
+
+case "${1:-}" in
+    start)      cmd_start "${2:-}" ;;
+    stop)       cmd_stop "${2:-}" ;;
+    status)     cmd_status "${2:-}" ;;
+    selection)  cmd_selection ;;
+    --setup)
+        case "${2:-}" in
+            claudecode)    cmd_setup_claudecode ;;
+            claudedesktop) cmd_setup_claudedesktop ;;
+            *)
+                echo "Unknown setup target: '${2:-}'"
+                echo "Available: claudecode, claudedesktop"
+                exit 1
+                ;;
+        esac
+        ;;
+    -h|--help|"") usage ;;
+    *)
+        echo "Unknown command: $1"
+        echo ""
+        usage
+        exit 1
+        ;;
+esac

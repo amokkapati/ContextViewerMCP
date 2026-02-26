@@ -327,8 +327,14 @@ class FileServerHandler(SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-    FileServerHandler.base_dir = os.getcwd()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("port", nargs="?", type=int, default=8000)
+    parser.add_argument("--serve-dir", default=os.getcwd())
+    args = parser.parse_args()
+
+    port = args.port
+    FileServerHandler.base_dir = os.path.abspath(args.serve_dir)
 
     server = HTTPServer(("localhost", port), FileServerHandler)
     print(f"Server running at http://localhost:{port}")
