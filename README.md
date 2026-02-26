@@ -8,71 +8,51 @@ Interactive document visualization via MCP (Model Context Protocol). Enables Cla
 
 ### 1. Initial Setup
 
-Clone the repository:
+Run the installer:
 
 ```bash
-git clone https://github.com/amokkapati/ContextViewerMCP
+curl -fsSL https://raw.githubusercontent.com/amokkapati/ContextViewerMCP/main/scripts/install.sh | sh
 ```
 
-Inside the project directory, set up a Python virtual environment and install dependencies:
+Then add the CLI to your PATH:
 
 ```bash
-uv venv venv
-uv pip install -r requirements.txt
-```
-
-Then run the startup script to see available options:
-
-```bash
-./run.sh
+echo 'export PATH="$HOME/.cache/contextviewermcp/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 ```
 
 **Usage:**
 
 ```
-Usage: ./run.sh <command> [options]
+Usage: contextviewermcp <command> [options]
 
 Commands:
-  start [port]    Start the ContextViewer server (default port: 8765)
-  stop [port]     Stop the running server
-  status [port]   Show server status and current selection
-  selection       Print the current text selection
-  setup           Install dependencies and generate Claude Desktop config
+  start [port]             Start the viewer (serves files from current directory)
+  stop [port]              Stop the running server
+  status [port]            Show server status and current selection
+  selection                Print the current text selection
+  --setup claudecode       Create .mcp.json for Claude Code MCP integration
+  --setup claudedesktop    Update Claude Desktop config
 
 Options:
-  -h, --help      Show this help message
+  -h, --help               Show this help message
 
 Examples:
-  ./run.sh start
-  ./run.sh start 3000
-  ./run.sh stop
-  ./run.sh selection
-  ./run.sh setup
+  cd ~/myproject && contextviewermcp start
+  contextviewermcp --setup claudecode
+  contextviewermcp selection
 ```
 
 ---
 
-### 2. Configure Claude Desktop
+### 2. Configure Claude Desktop or Claude Code
 
-Add the MCP server to your `claude_desktop_config.json`:
+Run the setup command from your project directory:
 
-| Platform | Config Path                                                       |
-| -------- | ----------------------------------------------------------------- |
-| macOS    | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows  | `%APPDATA%\Claude\claude_desktop_config.json`                     |
-| Linux    | `~/.config/Claude/claude_desktop_config.json`                     |
-
-Add the following to your config (update the path to match your installation):
-
-```json
-{
-  "mcpServers": {
-    "context-viewer": {
-      "command": "python3",
-      "args": ["/Users/YOUR_USERNAME/ContextViewerMCP/mcp_server.py"]
-    }
-  }
-}
+```bash
+cd ~/myproject
+contextviewermcp --setup claudecode      # creates .mcp.json for Claude Code
+contextviewermcp --setup claudedesktop   # updates Claude Desktop config
 ```
 
 ---
@@ -82,7 +62,7 @@ Add the following to your config (update the path to match your installation):
 When opening a Claude Code terminal, run:
 
 ```bash
-./run.sh start
+contextviewermcp start
 ```
 
 ---
