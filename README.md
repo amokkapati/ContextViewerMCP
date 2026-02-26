@@ -6,60 +6,33 @@ Interactive document visualization via MCP (Model Context Protocol). Enables Cla
 
 ## Quick Start
 
-### 1. Initial Setup
-
-Run the installer:
+### 1. Install
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/amokkapati/ContextViewerMCP/main/scripts/install.sh | sh
 ```
 
-Then add the CLI to your PATH:
+---
+
+### 2. Add to PATH
 
 ```bash
 echo 'export PATH="$HOME/.cache/contextviewermcp/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
-**Usage:**
-
-```
-Usage: contextviewermcp <command> [options]
-
-Commands:
-  start [port]             Start the viewer (serves files from current directory)
-  stop [port]              Stop the running server
-  status [port]            Show server status and current selection
-  selection                Print the current text selection
-  --setup claudecode       Create .mcp.json for Claude Code MCP integration
-  --setup claudedesktop    Update Claude Desktop config
-
-Options:
-  -h, --help               Show this help message
-
-Examples:
-  cd ~/myproject && contextviewermcp start
-  contextviewermcp --setup claudecode
-  contextviewermcp selection
-```
-
 ---
 
-### 2. Configure Claude Desktop or Claude Code
-
-Run the setup command from your project directory:
+### 3. Set up MCP Integration
 
 ```bash
 cd ~/myproject
-contextviewermcp --setup claudecode      # creates .mcp.json for Claude Code
-contextviewermcp --setup claudedesktop   # updates Claude Desktop config
+contextviewermcp --setup claudecode
 ```
 
 ---
 
-### 3. Start the Server
-
-When opening a Claude Code terminal, run:
+### 4. Start the Server
 
 ```bash
 contextviewermcp start
