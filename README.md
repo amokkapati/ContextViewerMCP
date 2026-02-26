@@ -40,10 +40,21 @@ contextviewermcp start
 
 ---
 
-### 4. Usage Examples
+### 5. Enable in Claude Code
+
+Open Claude Code in your project directory. 
+```bash
+claude
+```
+A prompt will appear asking if you want to use the MCP server defined in `.mcp.json` — click **Yes**.
+
+---
+
+### 6. Usage Examples
 
 #### Selecting Content in the Web UI
 
+- **Click and drag** — Select a range of lines
 - **Double-click** — Select a paragraph
 - **Alt/Option-click** — Select an indented block
 - **Click "✓ Confirm Selection"** — Save your selection
