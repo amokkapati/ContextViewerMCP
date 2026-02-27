@@ -23,7 +23,7 @@ source ~/.zshrc
 
 ---
 
-### 3. Set up MCP Integration
+### 3. Set up MCP Integration(First Time)
 
 ```bash
 cd ~/myproject
