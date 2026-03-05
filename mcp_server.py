@@ -507,11 +507,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                             save_state(state)
                             logger.debug("Selection cleared after read")
 
+                        line_info = ""
+                        start = selection.get("start_line")
+                        end = selection.get("end_line")
+                        if isinstance(start, int) and isinstance(end, int) and start > 0 and end > 0:
+                            line_info = f"Lines: {start}-{end}\n\n"
+
                         return [
                             TextContent(
                                 type="text",
                                 text=f"Selection from: {selection['file_path']}\n"
-                                f"Lines: {selection['start_line']}-{selection['end_line']}\n\n"
+                                f"{line_info}"
                                 f"{selection['selected_text']}",
                             )
                         ]
@@ -549,11 +555,17 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                     save_state(state)
                     logger.debug("Selection cleared after read")
 
+                line_info = ""
+                start = selection.get("start_line")
+                end = selection.get("end_line")
+                if isinstance(start, int) and isinstance(end, int) and start > 0 and end > 0:
+                    line_info = f"Lines: {start}-{end}\n\n"
+
                 return [
                     TextContent(
                         type="text",
                         text=f"Selection from: {selection['file_path']}\n"
-                        f"Lines: {selection['start_line']}-{selection['end_line']}\n\n"
+                        f"{line_info}"
                         f"{selection['selected_text']}",
                     )
                 ]
@@ -720,6 +732,13 @@ async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptRe
 
     if name == "analyze-selection":
         question = arguments.get("question", "What does this code/text do?")
+        start = selection.get("start_line")
+        end = selection.get("end_line")
+        if isinstance(start, int) and isinstance(end, int) and start > 0 and end > 0:
+            line_label = f"(lines {start}-{end})"
+        else:
+            line_label = "(no line numbers available)"
+
         return GetPromptResult(
             description=f"Analyze selection from {selection['file_path']}",
             messages=[
@@ -728,7 +747,7 @@ async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptRe
                     content=TextContent(
                         type="text",
                         text=f"I've selected the following from {selection['file_path']} "
-                        f"(lines {selection['start_line']}-{selection['end_line']}):\n\n"
+                        f"{line_label}:\n\n"
                         f"```\n{selection['selected_text']}\n```\n\n"
                         f"{question}",
                     ),
@@ -752,6 +771,13 @@ async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptRe
                 ],
             )
 
+        start = selection.get("start_line")
+        end = selection.get("end_line")
+        if isinstance(start, int) and isinstance(end, int) and start > 0 and end > 0:
+            line_label = f"(lines {start}-{end})"
+        else:
+            line_label = "(no line numbers available)"
+
         return GetPromptResult(
             description=f"Refactor selection from {selection['file_path']}",
             messages=[
@@ -760,7 +786,7 @@ async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptRe
                     content=TextContent(
                         type="text",
                         text=f"Please refactor the following code from {selection['file_path']} "
-                        f"(lines {selection['start_line']}-{selection['end_line']}):\n\n"
+                        f"{line_label}:\n\n"
                         f"```\n{selection['selected_text']}\n```\n\n"
                         f"Instructions: {instructions}\n\n"
                         f"Provide the refactored code and explain the changes.",
@@ -771,6 +797,13 @@ async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptRe
 
     elif name == "explain-latex":
         focus = arguments.get("focus", "content and structure")
+        start = selection.get("start_line")
+        end = selection.get("end_line")
+        if isinstance(start, int) and isinstance(end, int) and start > 0 and end > 0:
+            line_label = f"(lines {start}-{end})"
+        else:
+            line_label = "(no line numbers available)"
+
         return GetPromptResult(
             description=f"Explain LaTeX from {selection['file_path']}",
             messages=[
@@ -779,7 +812,7 @@ async def get_prompt(name: str, arguments: dict[str, str] | None) -> GetPromptRe
                     content=TextContent(
                         type="text",
                         text=f"I've selected the following LaTeX from {selection['file_path']} "
-                        f"(lines {selection['start_line']}-{selection['end_line']}):\n\n"
+                        f"{line_label}:\n\n"
                         f"```latex\n{selection['selected_text']}\n```\n\n"
                         f"Please explain this, focusing on: {focus}",
                     ),

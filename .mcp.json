@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "context-viewer": {
+      "command": "/Users/anishnutakki/.cache/contextviewermcp/repo/venv/bin/python",
+      "args": ["/Users/anishnutakki/.cache/contextviewermcp/repo/mcp_server.py", "--serve-dir", "/Users/anishnutakki/ContextViewerMCP"]
+    }
+  }
+}

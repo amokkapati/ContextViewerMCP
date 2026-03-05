@@ -5,16 +5,23 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]:-$0}" 2>/dev/null || echo "${BASH_SOURCE[0]:-$0}")")" && pwd)"
-VENV_PYTHON="$SCRIPT_DIR/venv/bin/python"
+# Prefer a venv next to this script (for local dev); if missing, fall back
+# to the installer-managed venv under ~/.cache/contextviewermcp.
+if [ -x "$SCRIPT_DIR/venv/bin/python" ]; then
+  VENV_PYTHON="$SCRIPT_DIR/venv/bin/python"
+else
+  VENV_PYTHON="$HOME/.cache/contextviewermcp/repo/venv/bin/python"
+fi
 SERVE_DIR="$(pwd)"
 PORT="${PORT:-8765}"
 STATE_FILE="$HOME/.context-viewer-state.json"
 
 _check_venv() {
     if [ ! -x "$VENV_PYTHON" ]; then
-        echo "✗ Python venv not found at $SCRIPT_DIR/venv"
-        echo "  Run the installer first:"
-        echo "  curl -fsSL https://raw.githubusercontent.com/amokkapati/ContextViewerMCP/main/scripts/install.sh | sh"
+        echo "✗ Python venv not found for ContextViewerMCP."
+        echo "  Expected either:"
+        echo "    - $SCRIPT_DIR/venv  (local dev clone), or"
+        echo "    - \$HOME/.cache/contextviewermcp/repo/venv  (installed copy)"
         exit 1
     fi
 }

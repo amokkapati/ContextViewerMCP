@@ -1,0 +1,229 @@
+%-------------------------
+% Resume in Latex
+% Author : Jake Gutierrez
+% Based off of: https://github.com/sb2nov/resume
+% License : MIT
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+% \usepackage[empty]{fullpage} % not needed; margins are adjusted manually below
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+% Make PDF text more copyable/ATS-friendly when the helper file is
+% available, but don't fail compilation if it's missing.
+\IfFileExists{glyphtounicode.tex}{\input{glyphtounicode}}{}
+
+
+%----------FONT OPTIONS----------
+% sans-serif
+% \usepackage[sfdefault]{FiraSans}
+% \usepackage[sfdefault]{roboto}
+% \usepackage[sfdefault]{noto-sans}
+% \usepackage[default]{sourcesanspro}
+
+% serif
+% \usepackage{CormorantGaramond}
+% \usepackage{charter}
+
+
+\pagestyle{fancy}
+\fancyhf{} % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+
+\addtolength{\topmargin}{-0.8in}  % was -0.5in
+\addtolength{\textheight}{1.5in}  % was 1.0in
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Ensure that generated PDF is machine readable/ATS parsable when supported
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & #2 \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\begin{document}
+
+%----------HEADING----------
+% \begin{tabular*}{\textwidth}{l@{\extracolsep{\fill}}r}
+%   \textbf{\href{http://sourabhbajaj.com/}{\Large Sourabh Bajaj}} & Email : \href{mailto:sourabh@sourabhbajaj.com}{sourabh@sourabhbajaj.com}\\
+%   \href{http://sourabhbajaj.com/}{http://www.sourabhbajaj.com} & Mobile : +1-123-456-7890 \\
+% \end{tabular*}
+
+\begin{center}
+    \textbf{\Huge \scshape Anish Nutakki} \\ \vspace{1pt}
+    \small 925-336-1711 $|$ \href{mailto:x@x.com}{\underline{anishnutakki@gmail.com}} $|$ 
+    \href{https://linkedin.com/in/...}{\underline{www.linkedin.com/in/anish-nutakki-a36058211/}} $|$
+    \href{https://github.com/...}{\underline{www.github.com/anishnutakki}}
+\end{center}
+
+
+%-----------EDUCATION-----------
+\section{Education}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {University of California, Santa Cruz}{Santa Cruz, CA}
+      {Master of Science in Computer Science - \textbf{GPA:} 4.0}{Expected June 2026}
+    \resumeSubheading
+      {University of California, Santa Cruz}{Santa Cruz, CA}
+      {Bachelor of Science in Computer Science - \textbf{GPA:} 3.9}{Sept. 2022 -- June 2025}
+      \resumeItemListStart
+        \resumeItem{}
+          {\textbf{Relevant Coursework:} Data Structures and Algorithms, Principles of Artificial Intelligence, Computer Architecture, Computer System Design, Applied Discrete Mathematics, Linear Algebra}
+        \resumeItem{}
+          {\textbf{Awards/Certifications:} Dean's Honors List, AWS Certified Cloud Practitioner, C++ and SQL Certifications  }
+      \resumeItemListEnd
+  \resumeSubHeadingListEnd
+
+%-----------EXPERIENCE-----------
+\section{Experience}
+  \resumeSubHeadingListStart
+\resumeSubheading
+  {Software Engineer Contractor}{June 2025 -- November 2025}
+  {Verita AI}{San Francisco, California}
+  \resumeItemListStart
+    \resumeItem{Helped build out the company website using \textbf{React}, delivering a responsive interface that increased user engagement}
+    \resumeItem{Designed and built custom internal QA testing infrastructure using \textbf{Python}, creating a Labelbox-style annotation platform supporting \textbf{30+ concurrent testers} and processing \textbf{20,000+ data annotations}}
+    \resumeItem{Integrated \textbf{AWS S3} object storage for scalable dataset management, handling \textbf{4+ TB} of training data}
+  \resumeItemListEnd
+    \resumeSubheading
+      {Full Stack Developer}{March 2024 -- November 2024}
+      {GMG MAAI Accelerator}{California, USA}
+      \resumeItemListStart
+        \resumeItem{Led frontend development and UI/UX design using \textbf{Expo} and \textbf{React.js}, along with designing UI components in \textbf{Figma} to create a high-performance application optimized for both mobile and web platforms}
+        \resumeItem{Developed high-accuracy OCR and HTML scanners utilizing \textbf{Google Cloud Vision} and \textbf{BeautifulSoup}, achieving 90\% accuracy in extracting data from websites and scanned images}
+\resumeItem{Developed a chatbot for recommendations using \textbf{PineconeDB} and \textbf{SentenceTransformers}}
+      \resumeItemListEnd
+      
+% -----------Multiple Positions Heading-----------
+%    \resumeSubSubheading
+%     {Software Engineer I}{Oct 2014 - Sep 2016}
+%     \resumeItemListStart
+%        \resumeItem{Apache Beam}
+%          {Apache Beam is a unified model for defining both batch and streaming data-parallel processing pipelines}
+%     \resumeItemListEnd
+%    \resumeSubHeadingListEnd
+%-------------------------------------------
+
+    \resumeSubheading
+      {Code Coach}{Jan. 2020 -- September 2022}
+      {CoderSchool}{San Ramon, CA}
+      \resumeItemListStart
+        \resumeItem{\textbf{Mentored} and guided over \textbf{15 young developers}, significantly enhancing their coding skills and problem-solving abilities, resulting in \textbf{measurable} improvements in their coding proficiency, helping them master languages such as \textbf{Java}, \textbf{Python}, and \textbf{Scratch}}
+    \resumeItemListEnd
+
+    \resumeSubheading
+      {Database Researcher}{May 2021 -- September 2021}
+      {ASDRP}{Fremont, CA}
+      \resumeItemListStart
+        \resumeItem{\textbf{Designed} and \textbf{implemented} a \textbf{SQL database system} to efficiently store and manage thousands of \textbf{NMR data points}, optimizing \textbf{data retrieval} and \textbf{performance} using database tools such as \textbf{NMRglue} and \textbf{MySQL}}
+        \resumeItem{Developed \textbf{strong collaboration} and \textbf{project management skills} by working closely with team members and mentors in a \textbf{research-driven environment}}
+      \resumeItemListEnd
+      
+
+  \resumeSubHeadingListEnd
+
+
+%-----------PROJECTS-----------
+\section{Projects}
+\resumeSubHeadingListStart
+\resumeProjectHeading
+         {\textbf{FreshFridge} $|$ \emph{Python, FastAPI, React Native, Firebase, OpenAI GPT-4o, MCP, Firebase}}{July 2025 - Present}
+         \resumeItemListStart
+\resumeItem{Built a \textbf{collaborative grocery management} iOS app with inventory/spending analysis, reducing food waste by \textbf{40\%} through expiration tracking and shopping list optimization}
+\resumeItem{Developed \textbf{receipt parsing OCR} processing receipts in under \textbf{10 seconds}, eliminating \textbf{90\%} of manual entry}
+\resumeItem{Implemented a chatbot with \textbf{SSE} and \textbf{MCP} for meal suggestions, reducing planning time by \textbf{75\%}}
+
+         \resumeItemListEnd
+\resumeProjectHeading
+{\textbf{ReciBook} $|$ \emph{Expo, React, JavaScript, Firebase, Vercel, Python, ChatGPT}}{June 2025 - August 2025}
+\resumeItemListStart
+\resumeItem{Built a full-stack \textbf{recipe sharing website} on Vercel using \textbf{React}, \textbf{JavaScript}, and \textbf{Firebase}, with social features such as follow/unfollow, user profiles, and shareable recipe links, increasing user engagement by \textbf{40\%}}
+\resumeItem{Integrated an AI-powered recipe autofill that reduces input time from \textbf{5 minutes to 20 seconds}, improving recipe submission speed by over \textbf{90\%}}
+\resumeItemListEnd
+
+    \resumeSubHeadingListEnd
+
+
+
+%
+%-----------PROGRAMMING SKILLS-----------
+\section{Technical Skills}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+     \textbf{Languages}{: Java, Python, C/C++, SQL, JavaScript, React, RISC-V, HTML, CSS} \\
+     \textbf{Frameworks}{: React, Node.js, Flask, OPENAI API, MCP, PineCone, FireBase, REST API, GitHub, Apache Tomcat} \\
+     \textbf{Developer Tools}{: Git, AWS, Google Cloud Platform, VS Code, Visual Studio, PyCharm, IntelliJ, VIM} \\
+     \textbf{Libraries}{: pandas, NumPy, LangChain, Matplotlib, React Navigation, Requests, Google Cloud SDK, PyTorch}
+    }}
+ \end{itemize}
+
+ 
+
+
+%-------------------------------------------
+\end{document}

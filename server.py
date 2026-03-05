@@ -203,8 +203,11 @@ class FileServerHandler(SimpleHTTPRequestHandler):
                     os.remove(aux_file)
 
             if result.returncode != 0 or not os.path.exists(pdf_path):
+                # Show the *end* of the LaTeX log, which usually contains the
+                # actual error message, instead of only the banner.
                 error_msg = result.stderr or result.stdout or "pdflatex compilation failed"
-                self.send_json_response({"success": False, "error": error_msg[:500]})
+                tail = error_msg[-800:]  # keep last ~800 chars for context
+                self.send_json_response({"success": False, "error": tail})
                 return
 
             rel_pdf_path = os.path.relpath(pdf_path, self.base_dir)

@@ -152,8 +152,27 @@ body {
   text-decoration: none;
 }
 
-#clearBtn { background: rgba(255,255,255,0.06); }
-#clearBtn:hover { background: rgba(255,255,255,0.10); }
+#confirmBtn {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 20px rgba(11,132,255,0.45);
+}
+#confirmBtn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-2), #53a9ff);
+}
+#confirmBtn:disabled {
+  background: rgba(11,132,255,0.18);
+  border-color: rgba(11,132,255,0.35);
+  color: rgba(247,247,248,0.7);
+  box-shadow: none;
+}
+
+#clearBtn {
+  background: var(--danger);
+  box-shadow: 0 6px 16px rgba(242, 109, 109, 0.4);
+}
+#clearBtn:hover {
+  background: #ff7f7f;
+}
 
 .selection-info {
   flex: 1;
@@ -218,8 +237,52 @@ code.hljs { background: transparent; padding: 0; }
 .preview-frame { width: 100%; height: 80vh; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: #191919; }
 img.preview-image { max-width: 100%; height: auto; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); }
 
+.pdf-page-wrapper {
+  position: relative;
+  margin: 0 auto 24px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+}
+.pdf-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.pdf-text-layer {
+  position: absolute;
+  inset: 0;
+  color: transparent;
+  background: transparent;
+  user-select: text;
+  pointer-events: auto;
+}
+.pdf-text-layer span {
+  position: absolute;
+  white-space: pre;
+}
+.pdf-text-layer ::selection {
+  background: rgba(11,132,255,0.30);
+  color: transparent;
+}
+
 .confirmation-bar { background: #0e639c; padding: 12px 16px; border-top: 1px solid var(--line); display: none; box-shadow: 0 -6px 18px rgba(0,0,0,0.35); }
 .confirmation-bar.show { display: flex; gap: 10px; align-items: center; }
+
+.debug-selection {
+  margin: 0;
+  padding: 8px 12px 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(249,249,250,0.8);
+  background: rgba(0,0,0,0.55);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  max-height: 140px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
 
 .tex-toolbar { display: flex; gap: 6px; margin-bottom: 10px; }
 .tex-toolbar button {

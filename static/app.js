@@ -10,6 +10,7 @@ let activeTreePath = '';
 let activeTreeIsDir = false;
 let lastNavigationTimestamp = 0;
 let navigationPollInterval = null;
+let currentIsPdf = false;
 
 function getFileBadge(name, isDir) {
     if (isDir) {
@@ -205,6 +206,7 @@ function getLanguageFromFilename(filename) {
 function displayFile(data, name) {
     const content = document.getElementById('content');
     const isTexFile = name.toLowerCase().endsWith('.tex');
+    currentIsPdf = false;
 
     if (!data.is_text) {
         const mime = data.mime_type || '';
@@ -315,6 +317,9 @@ function showPdfPreview() {
     document.getElementById('pdfPreviewBtn').classList.add('active');
     document.getElementById('pdfLinesBtn').classList.remove('active');
     clearSelection();
+    const sel = window.getSelection ? window.getSelection() : null;
+    if (sel && sel.removeAllRanges) sel.removeAllRanges();
+    currentIsPdf = false;
     _renderPdfIframe(content.dataset.pdfUrl);
 }
 
@@ -324,90 +329,77 @@ async function showPdfLines() {
     document.getElementById('pdfPreviewBtn').classList.remove('active');
 
     const pdfBody = document.getElementById('pdfBody');
-    pdfBody.innerHTML = '<div class="tex-loading">Extracting text…</div>';
+    pdfBody.innerHTML = '<div class="tex-loading">Rendering PDF… (text-selectable)</div>';
 
     try {
         await ensurePdfJs();
         const pdf = await pdfjsLib.getDocument(content.dataset.pdfUrl).promise;
 
-        let allLines = [];
+        pdfBody.innerHTML = '';
+
+        const scale = 1.5;
 
         for (let p = 1; p <= pdf.numPages; p++) {
-            // Insert a page-separator line for every page after the first
-            if (p > 1) {
-                allLines.push(`── Page ${p} ──`);
-            }
+            const page = await pdf.getPage(p);
+            const viewport = page.getViewport({ scale });
 
-            const page        = await pdf.getPage(p);
+            const pageWrapper = document.createElement('div');
+            pageWrapper.className = 'pdf-page-wrapper';
+            pageWrapper.style.width = viewport.width + 'px';
+            pageWrapper.style.height = viewport.height + 'px';
+
+            const canvas = document.createElement('canvas');
+            canvas.className = 'pdf-canvas';
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            const textLayer = document.createElement('div');
+            textLayer.className = 'pdf-text-layer';
+            textLayer.style.width = viewport.width + 'px';
+            textLayer.style.height = viewport.height + 'px';
+
+            pageWrapper.appendChild(canvas);
+            pageWrapper.appendChild(textLayer);
+            pdfBody.appendChild(pageWrapper);
+
+            const ctx = canvas.getContext('2d');
+            await page.render({ canvasContext: ctx, viewport }).promise;
+
             const textContent = await page.getTextContent();
-
-            // Bucket text items by rounded y-coordinate to group into visual lines
-            const bucket = {};
-            for (const item of textContent.items) {
-                if (!item.str || !item.str.trim()) continue;
-                const y = Math.round(item.transform[5] / 2) * 2;
-                if (!bucket[y]) bucket[y] = [];
-                bucket[y].push(item);
-            }
-
-            // Sort buckets top-to-bottom (PDF y-coords increase upward)
-            const sortedYs = Object.keys(bucket)
-                .map(Number)
-                .sort((a, b) => b - a);
-
-            for (const y of sortedYs) {
-                const lineText = bucket[y]
-                    .sort((a, b) => a.transform[4] - b.transform[4])  // left-to-right
-                    .map(i => i.str)
-                    .join(' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                if (lineText) allLines.push(lineText);
+            // Use pdf.js text layer helper if available to create a proper
+            // selectable text layer that tracks the rendered PDF.
+            if (pdfjsLib.renderTextLayer) {
+                pdfjsLib.renderTextLayer({
+                    textContent,
+                    container: textLayer,
+                    viewport,
+                    textDivs: [],
+                });
+            } else {
+                // Fallback: simple paragraphs, still selectable but without
+                // precise positioning.
+                textContent.items.forEach(item => {
+                    if (!item.str || !item.str.trim()) return;
+                    const span = document.createElement('span');
+                    span.textContent = item.str + ' ';
+                    textLayer.appendChild(span);
+                });
             }
         }
 
-        // Expose to the rest of the app so confirmSelection / copy work unchanged
-        currentFileLines = allLines;
-
-        let html = `<div id="texContent" style="background:#151515;border-radius:12px;border:1px solid rgba(255,255,255,0.05);box-shadow:0 10px 30px rgba(0,0,0,0.4);overflow:hidden;">`;
-        allLines.forEach((line, idx) => {
-            const lineNum = idx + 1;
-            const escaped = escapeHtml(line);
-            const isSep   = line.startsWith('──');
-            const sepStyle = isSep
-                ? 'opacity:0.35;font-style:italic;pointer-events:none;user-select:none;'
-                : '';
-            html += `<div class="line" data-line="${lineNum}" onclick="handleLineClick(${lineNum}, event)" style="cursor:pointer;${sepStyle}"><span class="line-number">${lineNum}</span><span class="line-content">${escaped}</span></div>`;
-        });
-        html += '</div>';
-        pdfBody.innerHTML = html;
-
-        // Wire up drag-selection (mirrors the code-viewer logic in displayFile)
-        pdfBody.querySelectorAll('.line').forEach(el => {
-            el.addEventListener('mousedown', e => {
-                const ln = parseInt(el.dataset.line, 10);
-                if (isNaN(ln)) return;
-                if (!e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) clearSelection();
-                isDragging     = true;
-                dragStartLine  = ln;
-                setRangeSelection(ln, ln, true);
-                e.preventDefault();
-            });
-            el.addEventListener('mouseover', () => {
-                if (!isDragging || dragStartLine === null) return;
-                const ln = parseInt(el.dataset.line, 10);
-                if (!isNaN(ln)) setRangeSelection(dragStartLine, ln, true);
-            });
-        });
-
+        currentIsPdf = true;
         selectedLines.clear();
         lastClickedLine = null;
-        updateSelectionInfo();
+        const btn  = document.getElementById('confirmBtn');
+        const info = document.getElementById('selectionInfo');
+        if (btn) btn.disabled = true;
+        if (info) info.textContent = '';
 
     } catch (e) {
-        pdfBody.innerHTML = `<div class="tex-error">Failed to extract PDF text: ${escapeHtml(e.message)}</div>`;
+        pdfBody.innerHTML = `<div class="tex-error">Failed to render PDF: ${escapeHtml(e.message)}</div>`;
     }
 }
+
 
 function _renderPdfIframe(url) {
     document.getElementById('pdfBody').innerHTML =
@@ -571,21 +563,53 @@ async function renderTexFile() {
 // ─── Confirm / send selection ─────────────────────────────────────────────────
 
 async function confirmSelection() {
-    if (selectedLines.size === 0) return;
+    const isPdf = currentIsPdf;
+    let selectedText = '';
+    let startLine = null;
+    let endLine = null;
 
-    const lines        = Array.from(selectedLines).sort((a, b) => a - b);
-    const selectedText = lines.map(ln => currentFileLines[ln - 1] ?? '').join('\n');
+    if (isPdf) {
+        // Use the browser's native text selection for PDFs rendered with a
+        // text layer. This gives the most natural selection UX.
+        const sel = window.getSelection ? window.getSelection() : null;
+        selectedText = sel ? sel.toString() : '';
+        if (!selectedText.trim()) return;
+    } else {
+        if (selectedLines.size === 0) return;
+        const lines = Array.from(selectedLines).sort((a, b) => a - b);
+        selectedText = lines.map(ln => currentFileLines[ln - 1] ?? '').join('\n');
+        startLine = lines[0];
+        endLine = lines[lines.length - 1];
+    }
+
+    const payload = {
+        file_path:     currentFilePath || currentFile,
+        selected_text: selectedText,
+        start_line:    startLine,
+        end_line:      endLine,
+    };
 
     await fetch('/api/confirm-selection', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            file_path:     currentFilePath || currentFile,
-            start_line:    lines[0],
-            end_line:      lines[lines.length - 1],
-            selected_text: selectedText
-        })
+        body: JSON.stringify(payload)
     });
+
+    // Temporary debug: show confirmed text in the UI
+    try {
+        const dbg = document.getElementById('debugSelection');
+        if (dbg) {
+            dbg.textContent = selectedText || '';
+        }
+        console.log('[ContextViewer] Confirmed selection:', {
+            file: payload.file_path,
+            start_line: payload.start_line,
+            end_line: payload.end_line,
+            text_preview: (selectedText || '').slice(0, 200)
+        });
+    } catch (e) {
+        // Debug-only; ignore errors
+    }
 
     const bar = document.getElementById('confirmationBar');
     bar.classList.add('show');
@@ -728,6 +752,20 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('mouseup', () => {
         isDragging    = false;
         dragStartLine = null;
+    });
+    // For PDFs, watch native text selection so we can enable/disable the
+    // confirm button when the user highlights text on the page.
+    document.addEventListener('selectionchange', () => {
+        if (!currentIsPdf) return;
+        const btn  = document.getElementById('confirmBtn');
+        const info = document.getElementById('selectionInfo');
+        if (!btn || !info) return;
+        const sel = window.getSelection ? window.getSelection() : null;
+        const hasText = sel && sel.toString().trim().length > 0;
+        btn.disabled = !hasText;
+        info.textContent = hasText
+            ? 'PDF text selected (no line numbers available)'
+            : '';
     });
     loadFiles();
     startNavigationPolling();
