@@ -24,6 +24,7 @@
             <div class="voice-bar">
                 <button id="micBtn" onclick="toggleVoiceInput()" title="Start voice query">🎤</button>
                 <input type="text" id="voiceQueryInput" placeholder="Voice query — click 🎤 and speak, or type here" />
+                <button id="voiceConfirmBtn" onclick="confirmSelection()" title="Confirm selection with voice query">✓ Confirm</button>
                 <button id="speakBtn" onclick="speakLastResponse()" title="Read last Claude response aloud">🔊</button>
                 <button id="stopSpeakBtn" onclick="stopSpeaking()" title="Stop speaking" style="display:none">⏹</button>
             </div>
