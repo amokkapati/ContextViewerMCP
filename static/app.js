@@ -676,6 +676,14 @@ async function renderTexFile() {
 
 // ─── Confirm / send selection ─────────────────────────────────────────────────
 
+function parseVoiceLineCommand(voiceText) {
+    // Match patterns like "select lines 9 through 18", "lines 9 to 18", "line 9 through line 18"
+    const m = voiceText.match(/lines?\s+(\d+)\s+(?:through|to|thru|-)\s+(?:line\s+)?(\d+)/i)
+           || voiceText.match(/select\s+(\d+)\s+(?:through|to|thru|-)\s+(\d+)/i);
+    if (m) return { start: parseInt(m[1], 10), end: parseInt(m[2], 10) };
+    return null;
+}
+
 async function confirmSelection() {
     const isPdf = currentIsPdf;
     let selectedText = '';
@@ -689,6 +697,15 @@ async function confirmSelection() {
         selectedText = sel ? sel.toString() : '';
         if (!selectedText.trim()) return;
     } else {
+        // If no lines are selected, check if the voice input contains a "select lines X through Y" command
+        if (selectedLines.size === 0) {
+            const voiceInput = document.getElementById('voiceQueryInput');
+            const voiceText = voiceInput ? voiceInput.value.trim() : '';
+            const cmd = parseVoiceLineCommand(voiceText);
+            if (cmd) {
+                setRangeSelection(cmd.start, cmd.end, true);
+            }
+        }
         if (selectedLines.size === 0) return;
         const lines = Array.from(selectedLines).sort((a, b) => a - b);
         selectedText = lines.map(ln => currentFileLines[ln - 1] ?? '').join('\n');
