@@ -52,6 +52,10 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             self.handle_navigation_executed()
             return
 
+        if self.path == "/api/voice-spoken":
+            self.handle_voice_spoken()
+            return
+
         self.send_response(404)
         self.end_headers()
 
@@ -256,6 +260,7 @@ class FileServerHandler(SimpleHTTPRequestHandler):
                 "start_line": data.get("start_line", 0),
                 "end_line": data.get("end_line", 0),
                 "selected_text": data.get("selected_text", ""),
+                "voice_query": data.get("voice_query", ""),
                 "timestamp": time.time(),
             }
 
@@ -316,6 +321,34 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
         except Exception as e:
             print(f"Error marking navigation as executed: {e}")
+            self.send_response(500)
+            self.end_headers()
+
+    def handle_voice_spoken(self):
+        """Mark voice_response as spoken so the browser doesn't replay it."""
+        content_length = int(self.headers.get("Content-Length", "0"))
+        post_data = self.rfile.read(content_length)
+        data = json.loads(post_data.decode("utf-8"))
+
+        state_file = Path.home() / ".context-viewer-state.json"
+        try:
+            existing_state = {}
+            if state_file.exists():
+                with open(state_file, "r") as f:
+                    existing_state = json.load(f)
+
+            if "voice_response" in existing_state:
+                if existing_state["voice_response"].get("timestamp") == data.get("timestamp"):
+                    existing_state["voice_response"]["spoken"] = True
+                    with open(state_file, "w") as f:
+                        json.dump(existing_state, f, indent=2)
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+        except Exception as e:
+            print(f"Error marking voice response as spoken: {e}")
             self.send_response(500)
             self.end_headers()
 

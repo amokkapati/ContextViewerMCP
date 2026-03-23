@@ -185,6 +185,79 @@ body {
   padding-right: 6px;
 }
 
+.voice-bar {
+  background: var(--panel-2);
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+#micBtn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 120ms ease, box-shadow 120ms ease;
+  flex-shrink: 0;
+}
+#micBtn:hover { background: rgba(255,255,255,0.14); }
+#micBtn.recording {
+  background: rgba(220, 50, 50, 0.25);
+  border-color: rgba(220, 50, 50, 0.6);
+  box-shadow: 0 0 0 3px rgba(220, 50, 50, 0.2);
+  animation: pulse-mic 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse-mic {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(220, 50, 50, 0.2); }
+  50%       { box-shadow: 0 0 0 6px rgba(220, 50, 50, 0.08); }
+}
+
+#voiceQueryInput {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  padding: 7px 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+#voiceQueryInput:focus {
+  border-color: rgba(11,132,255,0.5);
+  background: rgba(255,255,255,0.07);
+}
+#voiceQueryInput::placeholder { color: var(--muted-2); }
+
+#speakBtn, #stopSpeakBtn {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 120ms ease;
+  flex-shrink: 0;
+}
+#speakBtn:hover { background: rgba(255,255,255,0.14); }
+#stopSpeakBtn { background: rgba(220,50,50,0.2); border-color: rgba(220,50,50,0.4); }
+#stopSpeakBtn:hover { background: rgba(220,50,50,0.35); }
+
+.voice-query-confirm {
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  font-style: italic;
+  margin-left: 8px;
+}
+
 .hint {
   padding: 10px 12px;
   color: var(--muted-2);

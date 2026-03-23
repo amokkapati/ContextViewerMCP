@@ -21,6 +21,12 @@
                 <button id="clearBtn" onclick="clearSelection()">✕ Clear Selection</button>
                 <span id="selectionInfo" class="selection-info"></span>
             </div>
+            <div class="voice-bar">
+                <button id="micBtn" onclick="toggleVoiceInput()" title="Start voice query">🎤</button>
+                <input type="text" id="voiceQueryInput" placeholder="Voice query — click 🎤 and speak, or type here" />
+                <button id="speakBtn" onclick="speakLastResponse()" title="Read last Claude response aloud">🔊</button>
+                <button id="stopSpeakBtn" onclick="stopSpeaking()" title="Stop speaking" style="display:none">⏹</button>
+            </div>
             <div class="hint">
                 Click to toggle line, shift-click to select a range, drag to select a block.
                 Double-click selects a paragraph. Option/Alt-click selects an indent block.
@@ -29,7 +35,8 @@
                 <div style="color: #888; text-align: center; margin-top: 40px;">Select a file to view</div>
             </div>
             <div class="confirmation-bar" id="confirmationBar">
-                <span>Selection confirmed</span>
+                <span id="confirmationText">Selection confirmed</span>
+                <span id="voiceQueryConfirm" class="voice-query-confirm"></span>
             </div>
             <pre id="debugSelection" class="debug-selection"></pre>
         </div>

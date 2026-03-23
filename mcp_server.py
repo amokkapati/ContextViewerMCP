@@ -409,6 +409,20 @@ async def list_tools() -> list[Tool]:
                 "required": ["path", "name"],
             },
         ),
+        Tool(
+            name="speak_text",
+            description="Send text to be spoken aloud in the browser using text-to-speech. Use this to read responses, summaries, or explanations aloud to the user.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The text to speak aloud in the browser",
+                    },
+                },
+                "required": ["text"],
+            },
+        ),
     ]
 
 
@@ -511,14 +525,19 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                         start = selection.get("start_line")
                         end = selection.get("end_line")
                         if isinstance(start, int) and isinstance(end, int) and start > 0 and end > 0:
-                            line_info = f"Lines: {start}-{end}\n\n"
+                            line_info = f"Lines: {start}-{end}\n"
+
+                        voice_query_info = ""
+                        if selection.get("voice_query"):
+                            voice_query_info = f"Voice Query: {selection['voice_query']}\n"
 
                         return [
                             TextContent(
                                 type="text",
                                 text=f"Selection from: {selection['file_path']}\n"
                                 f"{line_info}"
-                                f"{selection['selected_text']}",
+                                f"{voice_query_info}"
+                                f"\n{selection['selected_text']}",
                             )
                         ]
                     await asyncio.sleep(0.5)
@@ -559,14 +578,19 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 start = selection.get("start_line")
                 end = selection.get("end_line")
                 if isinstance(start, int) and isinstance(end, int) and start > 0 and end > 0:
-                    line_info = f"Lines: {start}-{end}\n\n"
+                    line_info = f"Lines: {start}-{end}\n"
+
+                voice_query_info = ""
+                if selection.get("voice_query"):
+                    voice_query_info = f"Voice Query: {selection['voice_query']}\n"
 
                 return [
                     TextContent(
                         type="text",
                         text=f"Selection from: {selection['file_path']}\n"
                         f"{line_info}"
-                        f"{selection['selected_text']}",
+                        f"{voice_query_info}"
+                        f"\n{selection['selected_text']}",
                     )
                 ]
 
@@ -650,6 +674,26 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                     type="text",
                     text=f"Navigation command sent: Find function/class '{name_arg}' in {path}\n\n"
                     f"The web viewer will automatically navigate to the definition if it's open.",
+                )
+            ]
+
+        elif name == "speak_text":
+            text = arguments.get("text")
+            if not text:
+                raise ValueError("text is required")
+
+            state = get_state()
+            state["voice_response"] = {
+                "text": text,
+                "timestamp": time.time(),
+                "spoken": False,
+            }
+            save_state(state)
+            preview = text[:80] + ("…" if len(text) > 80 else "")
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Speaking in browser: \"{preview}\"",
                 )
             ]
 

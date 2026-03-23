@@ -12,6 +12,120 @@ let lastNavigationTimestamp = 0;
 let navigationPollInterval = null;
 let currentIsPdf = false;
 
+// ─── Voice input / output ─────────────────────────────────────────────────────
+
+let recognition = null;
+let isRecording = false;
+let lastVoiceResponseTimestamp = 0;
+
+function initSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return false;
+    recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+    return true;
+}
+
+function toggleVoiceInput() {
+    if (isRecording) {
+        stopVoiceInput();
+    } else {
+        startVoiceInput();
+    }
+}
+
+function startVoiceInput() {
+    if (!recognition && !initSpeechRecognition()) {
+        alert('Speech recognition is not supported in this browser.\nPlease use Chrome or Edge, or type your query manually.');
+        return;
+    }
+
+    const micBtn = document.getElementById('micBtn');
+    const input  = document.getElementById('voiceQueryInput');
+
+    recognition.onstart = () => {
+        isRecording = true;
+        micBtn.classList.add('recording');
+        micBtn.title = 'Stop recording';
+        input.placeholder = 'Listening…';
+        input.value = '';
+    };
+
+    recognition.onresult = (event) => {
+        let transcript = '';
+        for (let i = 0; i < event.results.length; i++) {
+            transcript += event.results[i][0].transcript;
+        }
+        input.value = transcript;
+    };
+
+    recognition.onend = () => {
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        micBtn.title = 'Start voice query';
+        input.placeholder = 'Voice query — click 🎤 and speak, or type here';
+    };
+
+    recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        isRecording = false;
+        micBtn.classList.remove('recording');
+        micBtn.title = 'Start voice query';
+        if (event.error === 'not-allowed') {
+            alert('Microphone access was denied. Please allow microphone access and try again.');
+        }
+    };
+
+    recognition.start();
+}
+
+function stopVoiceInput() {
+    if (recognition && isRecording) {
+        recognition.stop();
+    }
+}
+
+function speakText(text) {
+    if (!window.speechSynthesis) return;
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate  = 1.0;
+    utterance.pitch = 1.0;
+
+    const stopBtn = document.getElementById('stopSpeakBtn');
+    const speakBtn = document.getElementById('speakBtn');
+    if (stopBtn) stopBtn.style.display = 'inline-flex';
+    if (speakBtn) speakBtn.style.display = 'none';
+
+    utterance.onend = () => {
+        if (stopBtn) stopBtn.style.display = 'none';
+        if (speakBtn) speakBtn.style.display = 'inline-flex';
+    };
+
+    speechSynthesis.speak(utterance);
+}
+
+function stopSpeaking() {
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    const stopBtn = document.getElementById('stopSpeakBtn');
+    const speakBtn = document.getElementById('speakBtn');
+    if (stopBtn) stopBtn.style.display = 'none';
+    if (speakBtn) speakBtn.style.display = 'inline-flex';
+}
+
+function speakLastResponse() {
+    // Read the voice query back as confirmation, or the last known response
+    const input = document.getElementById('voiceQueryInput');
+    const text = input && input.value.trim();
+    if (text) {
+        speakText(text);
+    } else {
+        speakText('No voice query recorded yet. Click the microphone button and speak to add a query.');
+    }
+}
+
 function getFileBadge(name, isDir) {
     if (isDir) {
         return { label: 'DIR', color: '#3a3a40', text: '#f7f7f8' };
@@ -582,11 +696,15 @@ async function confirmSelection() {
         endLine = lines[lines.length - 1];
     }
 
+    const voiceInput = document.getElementById('voiceQueryInput');
+    const voiceQuery = voiceInput ? voiceInput.value.trim() : '';
+
     const payload = {
         file_path:     currentFilePath || currentFile,
         selected_text: selectedText,
         start_line:    startLine,
         end_line:      endLine,
+        voice_query:   voiceQuery,
     };
 
     await fetch('/api/confirm-selection', {
@@ -612,6 +730,12 @@ async function confirmSelection() {
     }
 
     const bar = document.getElementById('confirmationBar');
+    const voiceConfirm = document.getElementById('voiceQueryConfirm');
+    if (voiceConfirm && voiceQuery) {
+        voiceConfirm.textContent = `"${voiceQuery}"`;
+    } else if (voiceConfirm) {
+        voiceConfirm.textContent = '';
+    }
     bar.classList.add('show');
     setTimeout(() => bar.classList.remove('show'), 3000);
 }
@@ -641,6 +765,18 @@ async function pollNavigationCommands() {
         if (state.navigation && !state.navigation.executed && state.navigation.timestamp > lastNavigationTimestamp) {
             lastNavigationTimestamp = state.navigation.timestamp;
             await executeNavigationCommand(state.navigation);
+        }
+
+        // Check for a voice response from Claude (speak_text tool)
+        if (state.voice_response && !state.voice_response.spoken &&
+            state.voice_response.timestamp > lastVoiceResponseTimestamp) {
+            lastVoiceResponseTimestamp = state.voice_response.timestamp;
+            speakText(state.voice_response.text);
+            await fetch('/api/voice-spoken', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ timestamp: state.voice_response.timestamp })
+            });
         }
     } catch (e) {
         console.error('Navigation polling error:', e);
