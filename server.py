@@ -2,12 +2,31 @@
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import sys
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlparse, parse_qs
+
+
+def _install_missing_latex_packages(error_output: str) -> list[str]:
+    """Parse LaTeX error output for missing .sty files and install them via tlmgr."""
+    missing = re.findall(r"File `([^']+\.sty)' not found", error_output)
+    if not missing:
+        return []
+    packages = [name[:-4] for name in missing]  # strip .sty
+    try:
+        subprocess.run(
+            ["tlmgr", "install"] + packages,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return packages
 
 
 class FileServerHandler(SimpleHTTPRequestHandler):
@@ -41,6 +60,10 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             self.handle_navigation_state_api()
             return
 
+        if self.path.startswith("/api/annotations"):
+            self.handle_annotations_api()
+            return
+
         super().do_GET()
 
     def do_POST(self):
@@ -54,6 +77,10 @@ class FileServerHandler(SimpleHTTPRequestHandler):
 
         if self.path == "/api/voice-spoken":
             self.handle_voice_spoken()
+            return
+
+        if self.path == "/api/delete-annotation":
+            self.handle_delete_annotation()
             return
 
         self.send_response(404)
@@ -192,13 +219,23 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             pdf_filename = tex_filename.rsplit(".", 1)[0] + ".pdf"
             pdf_path = os.path.join(tex_dir, pdf_filename)
 
-            result = subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", tex_filename],
-                cwd=tex_dir,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+            def _run_pdflatex():
+                return subprocess.run(
+                    ["pdflatex", "-interaction=nonstopmode", tex_filename],
+                    cwd=tex_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+
+            result = _run_pdflatex()
+
+            # If packages are missing, install them and retry once
+            if result.returncode != 0:
+                combined = result.stderr + result.stdout
+                installed = _install_missing_latex_packages(combined)
+                if installed:
+                    result = _run_pdflatex()
 
             # Clean up auxiliary files
             for ext in [".aux", ".log"]:
@@ -349,6 +386,69 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
         except Exception as e:
             print(f"Error marking voice response as spoken: {e}")
+            self.send_response(500)
+            self.end_headers()
+
+    def handle_annotations_api(self):
+        """Return annotations, optionally filtered by file path."""
+        parsed = urlparse(self.path)
+        params = parse_qs(parsed.query)
+        file_filter = params.get("file", [None])[0]
+
+        state_file = Path.home() / ".context-viewer-state.json"
+        try:
+            state = {}
+            if state_file.exists():
+                with open(state_file, "r") as f:
+                    state = json.load(f)
+
+            annotations = state.get("annotations", [])
+
+            if file_filter:
+                file_filter_decoded = unquote(file_filter)
+                annotations = [
+                    a for a in annotations
+                    if unquote(a.get("file_path", "")) == file_filter_decoded
+                ]
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(annotations).encode("utf-8"))
+        except Exception:
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(b"[]")
+
+    def handle_delete_annotation(self):
+        """Delete an annotation by id."""
+        content_length = int(self.headers.get("Content-Length", "0"))
+        post_data = self.rfile.read(content_length)
+        data = json.loads(post_data.decode("utf-8"))
+        annotation_id = data.get("id")
+
+        state_file = Path.home() / ".context-viewer-state.json"
+        try:
+            existing_state = {}
+            if state_file.exists():
+                with open(state_file, "r") as f:
+                    existing_state = json.load(f)
+
+            annotations = existing_state.get("annotations", [])
+            existing_state["annotations"] = [
+                a for a in annotations if a.get("id") != annotation_id
+            ]
+
+            with open(state_file, "w") as f:
+                json.dump(existing_state, f, indent=2)
+
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+        except Exception as e:
+            print(f"Error deleting annotation: {e}")
             self.send_response(500)
             self.end_headers()
 

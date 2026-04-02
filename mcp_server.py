@@ -11,11 +11,30 @@ import json
 import logging
 import mimetypes
 import os
+import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 from typing import Any
+
+
+def _install_missing_latex_packages(error_output: str) -> list[str]:
+    """Parse LaTeX error output for missing .sty files and install them via tlmgr."""
+    missing = re.findall(r"File `([^']+\.sty)' not found", error_output)
+    if not missing:
+        return []
+    packages = [name[:-4] for name in missing]  # strip .sty
+    try:
+        subprocess.run(
+            ["tlmgr", "install"] + packages,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return packages
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -215,13 +234,23 @@ def render_latex(path: str) -> dict[str, Any]:
     pdf_path = tex_dir / pdf_filename
 
     try:
-        result = subprocess.run(
-            ["pdflatex", "-interaction=nonstopmode", tex_filename],
-            cwd=tex_dir,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
+        def _run_pdflatex():
+            return subprocess.run(
+                ["pdflatex", "-interaction=nonstopmode", tex_filename],
+                cwd=tex_dir,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+        result = _run_pdflatex()
+
+        # If packages are missing, install them and retry once
+        if result.returncode != 0:
+            combined = result.stderr + result.stdout
+            installed = _install_missing_latex_packages(combined)
+            if installed:
+                result = _run_pdflatex()
 
         # Clean up auxiliary files
         for ext in [".aux", ".log"]:
@@ -421,6 +450,36 @@ async def list_tools() -> list[Tool]:
                     },
                 },
                 "required": ["text"],
+            },
+        ),
+        Tool(
+            name="pin_annotation",
+            description="Pin a sticky annotation bubble to a specific line range in the viewer. Use this to attach your response, explanation, or notes directly onto the code lines you analyzed. The annotation appears inline in the viewer like a code review comment.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "The annotation text to display (your response, explanation, or notes)",
+                    },
+                    "file_path": {
+                        "type": "string",
+                        "description": "File path the annotation belongs to (use the file_path from get_selection)",
+                    },
+                    "start_line": {
+                        "type": "number",
+                        "description": "First line of the annotated range",
+                    },
+                    "end_line": {
+                        "type": "number",
+                        "description": "Last line of the annotated range",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Label shown in the annotation header (default: 'Claude')",
+                    },
+                },
+                "required": ["text", "file_path"],
             },
         ),
     ]
@@ -694,6 +753,39 @@ async def call_tool(name: str, arguments: Any) -> list[TextContent]:
                 TextContent(
                     type="text",
                     text=f"Speaking in browser: \"{preview}\"",
+                )
+            ]
+
+        elif name == "pin_annotation":
+            text = arguments.get("text")
+            file_path = arguments.get("file_path")
+            if not text or not file_path:
+                raise ValueError("text and file_path are required")
+
+            start_line = arguments.get("start_line", 0)
+            end_line = arguments.get("end_line", start_line)
+            label = arguments.get("label", "Claude")
+
+            state = get_state()
+            annotations = state.get("annotations", [])
+            annotation_id = f"{int(time.time() * 1000)}-{len(annotations)}"
+            annotations.append({
+                "id": annotation_id,
+                "file_path": file_path,
+                "start_line": start_line,
+                "end_line": end_line,
+                "text": text,
+                "label": label,
+                "timestamp": time.time(),
+            })
+            state["annotations"] = annotations
+            save_state(state)
+
+            line_info = f" lines {start_line}–{end_line}" if start_line else ""
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Annotation pinned to {file_path}{line_info}. It will appear in the viewer.",
                 )
             ]
 
