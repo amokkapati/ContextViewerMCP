@@ -38,10 +38,26 @@ else
     echo "✓ Virtual environment already exists"
 fi
 
-# --- 3. Make CLI executable ---
+# --- 3. Install BasicTeX for LaTeX compilation (macOS only) ---
+if [ "$(uname)" = "Darwin" ]; then
+    if command -v pdflatex > /dev/null 2>&1; then
+        echo "✓ LaTeX (pdflatex) already available"
+    elif command -v brew > /dev/null 2>&1; then
+        echo "Installing BasicTeX for LaTeX compilation..."
+        brew install --cask basictex
+        export PATH="/Library/TeX/texbin:$PATH"
+        echo "✓ BasicTeX installed"
+    else
+        echo "⚠ Homebrew not found — skipping LaTeX install."
+        echo "  To enable LaTeX compilation, install Homebrew then run:"
+        echo "    brew install --cask basictex"
+    fi
+fi
+
+# --- 4. Make CLI executable ---
 chmod +x "$REPO_DIR/contextviewermcp"
 
-# --- 4. Create bin wrapper ---
+# --- 5. Create bin wrapper ---
 mkdir -p "$BIN_DIR"
 cat > "$BIN_DIR/contextviewermcp" <<WRAPPER
 #!/usr/bin/env sh
@@ -50,7 +66,7 @@ WRAPPER
 chmod +x "$BIN_DIR/contextviewermcp"
 echo "✓ Installed to $BIN_DIR/contextviewermcp"
 
-# --- 5. Print PATH instructions ---
+# --- 6. Print PATH instructions ---
 echo ""
 echo "============================================"
 echo "  Installation complete!"
@@ -67,6 +83,9 @@ else
 fi
 
 echo "  echo 'export PATH=\"\$HOME/.cache/contextviewermcp/bin:\$PATH\"' >> $RC_FILE"
+if [ "$(uname)" = "Darwin" ] && [ -d "/Library/TeX/texbin" ]; then
+    echo "  echo 'export PATH=\"/Library/TeX/texbin:\$PATH\"' >> $RC_FILE"
+fi
 echo "  source $RC_FILE"
 echo ""
 echo "Then in any project directory:"
