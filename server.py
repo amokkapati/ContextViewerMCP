@@ -2,12 +2,31 @@
 import json
 import mimetypes
 import os
+import re
 import subprocess
 import sys
 import time
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import quote, unquote, urlparse, parse_qs
+
+
+def _install_missing_latex_packages(error_output: str) -> list[str]:
+    """Parse LaTeX error output for missing .sty files and install them via tlmgr."""
+    missing = re.findall(r"File `([^']+\.sty)' not found", error_output)
+    if not missing:
+        return []
+    packages = [name[:-4] for name in missing]  # strip .sty
+    try:
+        subprocess.run(
+            ["tlmgr", "install"] + packages,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        pass
+    return packages
 
 
 class FileServerHandler(SimpleHTTPRequestHandler):
@@ -200,13 +219,23 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             pdf_filename = tex_filename.rsplit(".", 1)[0] + ".pdf"
             pdf_path = os.path.join(tex_dir, pdf_filename)
 
-            result = subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", tex_filename],
-                cwd=tex_dir,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
+            def _run_pdflatex():
+                return subprocess.run(
+                    ["pdflatex", "-interaction=nonstopmode", tex_filename],
+                    cwd=tex_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                )
+
+            result = _run_pdflatex()
+
+            # If packages are missing, install them and retry once
+            if result.returncode != 0:
+                combined = result.stderr + result.stdout
+                installed = _install_missing_latex_packages(combined)
+                if installed:
+                    result = _run_pdflatex()
 
             # Clean up auxiliary files
             for ext in [".aux", ".log"]:
