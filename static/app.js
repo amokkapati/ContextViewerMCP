@@ -12,6 +12,10 @@ let lastNavigationTimestamp = 0;
 let navigationPollInterval = null;
 let currentIsPdf = false;
 
+// ─── Annotation state ────────────────────────────────────────────────────────
+let currentAnnotations = [];
+let lastAnnotationSignature = '';
+
 // ─── Voice input / output ─────────────────────────────────────────────────────
 
 let recognition = null;
@@ -232,6 +236,7 @@ async function loadFile(path, name) {
         selectedLines.clear();
         lastClickedLine = null;
         updateSelectionInfo();
+        loadAnnotations(path);
     } catch (e) {
         console.error(e);
     }
@@ -795,6 +800,21 @@ async function pollNavigationCommands() {
                 body: JSON.stringify({ timestamp: state.voice_response.timestamp })
             });
         }
+
+        // Check for annotation changes for the current file
+        if (currentFilePath) {
+            const allAnnotations = state.annotations || [];
+            const fileAnnotations = allAnnotations.filter(a => {
+                try { return decodeURIComponent(a.file_path) === decodeURIComponent(currentFilePath); }
+                catch { return a.file_path === currentFilePath; }
+            });
+            const sig = fileAnnotations.length + '_' + (fileAnnotations[fileAnnotations.length - 1]?.timestamp || 0);
+            if (sig !== lastAnnotationSignature) {
+                lastAnnotationSignature = sig;
+                currentAnnotations = fileAnnotations;
+                renderAnnotations();
+            }
+        }
     } catch (e) {
         console.error('Navigation polling error:', e);
     }
@@ -895,6 +915,95 @@ function stopNavigationPolling() {
     if (navigationPollInterval) {
         clearInterval(navigationPollInterval);
         navigationPollInterval = null;
+    }
+}
+
+// ─── Annotations ─────────────────────────────────────────────────────────────
+
+async function loadAnnotations(filePath) {
+    if (!filePath) return;
+    try {
+        const res = await fetch('/api/annotations?file=' + encodeURIComponent(filePath));
+        currentAnnotations = await res.json();
+        renderAnnotations();
+    } catch (e) {
+        console.error('Failed to load annotations:', e);
+    }
+}
+
+function renderAnnotations() {
+    document.querySelectorAll('.annotation-card').forEach(el => el.remove());
+    document.querySelectorAll('.annotation-dot').forEach(el => el.remove());
+
+    if (!currentAnnotations.length) return;
+
+    // Add dot marker to each annotated line number
+    for (const ann of currentAnnotations) {
+        const start = ann.start_line || 0;
+        const end = ann.end_line || start;
+        for (let ln = start; ln <= end; ln++) {
+            const lineEl = document.querySelector(`[data-line="${ln}"]`);
+            if (lineEl) {
+                const numEl = lineEl.querySelector('.line-number');
+                if (numEl && !numEl.querySelector('.annotation-dot')) {
+                    const dot = document.createElement('span');
+                    dot.className = 'annotation-dot';
+                    dot.title = 'Has annotation';
+                    numEl.appendChild(dot);
+                }
+            }
+        }
+    }
+
+    // Group annotations by end_line and insert cards after that line
+    const byEndLine = {};
+    for (const ann of currentAnnotations) {
+        const key = ann.end_line || ann.start_line || 0;
+        if (!byEndLine[key]) byEndLine[key] = [];
+        byEndLine[key].push(ann);
+    }
+
+    for (const [endLine, anns] of Object.entries(byEndLine)) {
+        const lineEl = document.querySelector(`[data-line="${endLine}"]`);
+        if (!lineEl || !lineEl.parentNode) continue;
+
+        let lastInserted = lineEl;
+        for (const ann of anns) {
+            const card = document.createElement('div');
+            card.className = 'annotation-card';
+            card.dataset.annotationId = ann.id;
+
+            const ts = ann.timestamp ? new Date(ann.timestamp * 1000) : new Date();
+            const timeStr = ts.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const lineStr = ann.start_line && ann.end_line
+                ? `lines ${ann.start_line}\u2013${ann.end_line}`
+                : '';
+
+            card.innerHTML = `
+                <div class="annotation-header">
+                    <span class="annotation-label">${escapeHtml(ann.label || 'Claude')}</span>
+                    <span class="annotation-meta">${lineStr ? lineStr + ' \u00b7 ' : ''}${timeStr}</span>
+                    <button class="annotation-delete" onclick="deleteAnnotation('${ann.id}')" title="Remove annotation">\u00d7</button>
+                </div>
+                <div class="annotation-body">${escapeHtml(ann.text)}</div>`;
+
+            lastInserted.parentNode.insertBefore(card, lastInserted.nextSibling);
+            lastInserted = card;
+        }
+    }
+}
+
+async function deleteAnnotation(id) {
+    try {
+        await fetch('/api/delete-annotation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+        });
+        currentAnnotations = currentAnnotations.filter(a => a.id !== id);
+        renderAnnotations();
+    } catch (e) {
+        console.error('Failed to delete annotation:', e);
     }
 }
 

@@ -398,3 +398,78 @@ img.preview-image { max-width: 100%; height: auto; border-radius: 12px; border: 
   0%, 100% { background: var(--sel); }
   50% { background: rgba(11, 132, 255, 0.35); box-shadow: 0 0 20px rgba(11, 132, 255, 0.5); }
 }
+
+/* Annotation bubbles */
+.annotation-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f5a623;
+  margin-left: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.annotation-card {
+  margin: 2px 12px 6px 56px;
+  background: rgba(245, 166, 35, 0.07);
+  border: 1px solid rgba(245, 166, 35, 0.25);
+  border-left: 3px solid #f5a623;
+  border-radius: 0 8px 8px 0;
+  overflow: hidden;
+  animation: annotation-in 0.18s ease-out;
+}
+
+@keyframes annotation-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.annotation-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: rgba(245, 166, 35, 0.09);
+  border-bottom: 1px solid rgba(245, 166, 35, 0.15);
+}
+
+.annotation-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #f5a623;
+  letter-spacing: 0.3px;
+}
+
+.annotation-meta {
+  font-size: 11px;
+  color: var(--muted-2);
+  flex: 1;
+}
+
+.annotation-delete {
+  background: none;
+  border: none;
+  color: var(--muted-2);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+  transition: color 120ms ease, background 120ms ease;
+  flex-shrink: 0;
+}
+.annotation-delete:hover {
+  color: var(--danger);
+  background: rgba(242, 109, 109, 0.15);
+}
+
+.annotation-body {
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+  white-space: pre-wrap;
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+}
