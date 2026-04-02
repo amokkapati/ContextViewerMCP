@@ -38,20 +38,17 @@ else
     echo "✓ Virtual environment already exists"
 fi
 
-# --- 3. Install BasicTeX for LaTeX compilation (macOS only) ---
-if [ "$(uname)" = "Darwin" ]; then
-    if command -v pdflatex > /dev/null 2>&1; then
-        echo "✓ LaTeX (pdflatex) already available"
-    elif command -v brew > /dev/null 2>&1; then
-        echo "Installing BasicTeX for LaTeX compilation..."
-        brew install --cask basictex
-        export PATH="/Library/TeX/texbin:$PATH"
-        echo "✓ BasicTeX installed"
-    else
-        echo "⚠ Homebrew not found — skipping LaTeX install."
-        echo "  To enable LaTeX compilation, install Homebrew then run:"
-        echo "    brew install --cask basictex"
-    fi
+# --- 3. Install tectonic for LaTeX compilation ---
+if command -v tectonic > /dev/null 2>&1; then
+    echo "✓ tectonic already available"
+elif command -v brew > /dev/null 2>&1; then
+    echo "Installing tectonic for LaTeX compilation..."
+    brew install tectonic
+    echo "✓ tectonic installed"
+else
+    echo "⚠ Homebrew not found — skipping tectonic install."
+    echo "  To enable LaTeX compilation, install Homebrew then run:"
+    echo "    brew install tectonic"
 fi
 
 # --- 4. Make CLI executable ---
@@ -83,9 +80,6 @@ else
 fi
 
 echo "  echo 'export PATH=\"\$HOME/.cache/contextviewermcp/bin:\$PATH\"' >> $RC_FILE"
-if [ "$(uname)" = "Darwin" ] && [ -d "/Library/TeX/texbin" ]; then
-    echo "  echo 'export PATH=\"/Library/TeX/texbin:\$PATH\"' >> $RC_FILE"
-fi
 echo "  source $RC_FILE"
 echo ""
 echo "Then in any project directory:"

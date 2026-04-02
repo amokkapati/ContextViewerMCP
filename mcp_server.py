@@ -11,7 +11,6 @@ import json
 import logging
 import mimetypes
 import os
-import re
 import subprocess
 import sys
 import time
@@ -19,22 +18,6 @@ from pathlib import Path
 from typing import Any
 
 
-def _install_missing_latex_packages(error_output: str) -> list[str]:
-    """Parse LaTeX error output for missing .sty files and install them via tlmgr."""
-    missing = re.findall(r"File `([^']+\.sty)' not found", error_output)
-    if not missing:
-        return []
-    packages = [name[:-4] for name in missing]  # strip .sty
-    try:
-        subprocess.run(
-            ["tlmgr", "install"] + packages,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-    return packages
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
@@ -234,32 +217,16 @@ def render_latex(path: str) -> dict[str, Any]:
     pdf_path = tex_dir / pdf_filename
 
     try:
-        def _run_pdflatex():
-            return subprocess.run(
-                ["pdflatex", "-interaction=nonstopmode", tex_filename],
-                cwd=tex_dir,
-                capture_output=True,
-                text=True,
-                timeout=60,
-            )
-
-        result = _run_pdflatex()
-
-        # If packages are missing, install them and retry once
-        if result.returncode != 0:
-            combined = result.stderr + result.stdout
-            installed = _install_missing_latex_packages(combined)
-            if installed:
-                result = _run_pdflatex()
-
-        # Clean up auxiliary files
-        for ext in [".aux", ".log"]:
-            aux_file = tex_dir / (full_path.stem + ext)
-            if aux_file.exists():
-                aux_file.unlink()
+        result = subprocess.run(
+            ["tectonic", tex_filename],
+            cwd=tex_dir,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
 
         if result.returncode != 0 or not pdf_path.exists():
-            error_msg = result.stderr or result.stdout or "pdflatex compilation failed"
+            error_msg = result.stderr or result.stdout or "tectonic compilation failed"
             return {"success": False, "error": error_msg[:500]}
 
         rel_pdf_path = pdf_path.relative_to(BASE_DIR)
@@ -272,7 +239,7 @@ def render_latex(path: str) -> dict[str, Any]:
     except subprocess.TimeoutExpired:
         return {"success": False, "error": "Compilation timed out"}
     except FileNotFoundError:
-        return {"success": False, "error": "pdflatex not found. Please install LaTeX."}
+        return {"success": False, "error": "tectonic not found. Install with: brew install tectonic"}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
