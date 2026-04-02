@@ -11,6 +11,8 @@ let activeTreeIsDir = false;
 let lastNavigationTimestamp = 0;
 let navigationPollInterval = null;
 let currentIsPdf = false;
+let currentFileMtime = null;
+let fileWatchInterval = null;
 
 // ─── Annotation state ────────────────────────────────────────────────────────
 let currentAnnotations = [];
@@ -237,6 +239,53 @@ async function loadFile(path, name) {
         lastClickedLine = null;
         updateSelectionInfo();
         loadAnnotations(path);
+        startFileWatching(path);
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+function startFileWatching(path) {
+    if (fileWatchInterval) clearInterval(fileWatchInterval);
+    currentFileMtime = null;
+    // seed the mtime without triggering a reload
+    fetch('/api/file-mtime/' + path)
+        .then(r => r.json())
+        .then(d => { currentFileMtime = d.mtime; })
+        .catch(() => {});
+    fileWatchInterval = setInterval(async () => {
+        if (!currentFilePath) return;
+        try {
+            const r = await fetch('/api/file-mtime/' + currentFilePath);
+            const d = await r.json();
+            if (currentFileMtime !== null && d.mtime !== currentFileMtime) {
+                currentFileMtime = d.mtime;
+                await reloadCurrentFile();
+            } else {
+                currentFileMtime = d.mtime;
+            }
+        } catch (e) {}
+    }, 500);
+}
+
+async function reloadCurrentFile() {
+    if (!currentFilePath || !currentFile) return;
+    const contentEl = document.getElementById('content');
+    const scrollTop = contentEl ? contentEl.scrollTop : 0;
+    const prevSelected = new Set(selectedLines);
+    try {
+        const res = await fetch('/api/file-content/' + currentFilePath);
+        const data = await res.json();
+        currentFileLines = (data.content || '').split('\n');
+        displayFile(data, currentFile);
+        // restore selection highlights
+        prevSelected.forEach(ln => {
+            const el = document.querySelector(`[data-line="${ln}"]`);
+            if (el) { el.classList.add('selected'); selectedLines.add(ln); }
+        });
+        updateSelectionInfo();
+        // restore scroll
+        if (contentEl) contentEl.scrollTop = scrollTop;
     } catch (e) {
         console.error(e);
     }

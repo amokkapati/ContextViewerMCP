@@ -60,6 +60,10 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             self.handle_navigation_state_api()
             return
 
+        if self.path.startswith("/api/file-mtime"):
+            self.handle_file_mtime_api()
+            return
+
         if self.path.startswith("/api/annotations"):
             self.handle_annotations_api()
             return
@@ -310,6 +314,21 @@ class FileServerHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-type", "application/json")
         self.end_headers()
         self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+
+    def handle_file_mtime_api(self):
+        try:
+            path = unquote(self.path.replace("/api/file-mtime", "", 1)).lstrip("/")
+            full_path = os.path.join(self.base_dir, path)
+            full_path = os.path.normpath(full_path)
+            if not full_path.startswith(self.base_dir):
+                self.send_error(403)
+                return
+            if not os.path.isfile(full_path):
+                self.send_error(404)
+                return
+            self.send_json_response({"mtime": os.path.getmtime(full_path)})
+        except Exception:
+            self.send_error(500)
 
     def handle_navigation_state_api(self):
         """Return current navigation state from state file."""
