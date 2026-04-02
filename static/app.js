@@ -509,9 +509,7 @@ async function showPdfLines() {
         currentIsPdf = true;
         selectedLines.clear();
         lastClickedLine = null;
-        const btn  = document.getElementById('confirmBtn');
         const info = document.getElementById('selectionInfo');
-        if (btn) btn.disabled = true;
         if (info) info.textContent = '';
 
     } catch (e) {
@@ -624,16 +622,38 @@ function selectIndentBlock(lineNum) {
 }
 
 function updateSelectionInfo() {
-    const btn  = document.getElementById('confirmBtn');
     const info = document.getElementById('selectionInfo');
     if (selectedLines.size === 0) {
-        btn.disabled    = true;
         info.textContent = '';
     } else {
-        btn.disabled    = false;
-        const sorted    = Array.from(selectedLines).sort((a, b) => a - b);
+        const sorted = Array.from(selectedLines).sort((a, b) => a - b);
         info.textContent = `${selectedLines.size} line(s) selected (${sorted[0]}-${sorted[sorted.length - 1]})`;
     }
+    scheduleAutoSave();
+}
+
+let autoSaveTimer = null;
+
+function scheduleAutoSave() {
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(autoSaveSelection, 300);
+}
+
+async function autoSaveSelection() {
+    if (!currentFilePath && !currentFile) return;
+    const lines = Array.from(selectedLines).sort((a, b) => a - b);
+    const selectedText = lines.map(ln => currentFileLines[ln - 1] ?? '').join('\n');
+    await fetch('/api/confirm-selection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            file_path:     currentFilePath || currentFile,
+            selected_text: selectedText,
+            start_line:    lines[0] ?? null,
+            end_line:      lines[lines.length - 1] ?? null,
+            voice_query:   '',
+        })
+    });
 }
 
 function clearSelection() {
@@ -1010,21 +1030,17 @@ async function deleteAnnotation(id) {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('confirmBtn').onclick = confirmSelection;
     document.addEventListener('mouseup', () => {
         isDragging    = false;
         dragStartLine = null;
     });
-    // For PDFs, watch native text selection so we can enable/disable the
-    // confirm button when the user highlights text on the page.
+    // For PDFs, watch native text selection to update the info bar.
     document.addEventListener('selectionchange', () => {
         if (!currentIsPdf) return;
-        const btn  = document.getElementById('confirmBtn');
         const info = document.getElementById('selectionInfo');
-        if (!btn || !info) return;
+        if (!info) return;
         const sel = window.getSelection ? window.getSelection() : null;
         const hasText = sel && sel.toString().trim().length > 0;
-        btn.disabled = !hasText;
         info.textContent = hasText
             ? 'PDF text selected (no line numbers available)'
             : '';
