@@ -55,7 +55,12 @@ cmd_start() {
     if lsof -i ":$port" > /dev/null 2>&1; then
         echo "✓ Server already running at http://localhost:$port"
         echo "  Serving: $SERVE_DIR"
-        _show_state "$port"
+        _show_state "$port" || true
+        case "$(uname)" in
+            Darwin) open "http://localhost:$port" ;;
+            Linux)  xdg-open "http://localhost:$port" 2>/dev/null || true ;;
+            MINGW*|CYGWIN*|MSYS*) start "http://localhost:$port" ;;
+        esac
         exit 0
     fi
 
@@ -70,9 +75,15 @@ cmd_start() {
 
     if lsof -i ":$port" > /dev/null 2>&1; then
         echo "✓ Server started (PID: $pid)"
-        _show_state "$port"
+        _show_state "$port" || true
         echo ""
         echo "To stop: contextviewermcp stop $port"
+        # Open in default browser
+        case "$(uname)" in
+            Darwin) open "http://localhost:$port" ;;
+            Linux)  xdg-open "http://localhost:$port" 2>/dev/null || true ;;
+            MINGW*|CYGWIN*|MSYS*) start "http://localhost:$port" ;;
+        esac
     else
         echo "✗ Failed to start server. Check /tmp/contextviewermcp-server.log"
         exit 1

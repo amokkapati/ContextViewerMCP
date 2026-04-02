@@ -1,0 +1,5 @@
+matplotlib
+requests
+reportlab
+PyMuPDF
+pdfplumber
