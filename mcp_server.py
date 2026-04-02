@@ -216,9 +216,14 @@ def render_latex(path: str) -> dict[str, Any]:
     pdf_filename = full_path.stem + ".pdf"
     pdf_path = tex_dir / pdf_filename
 
+    stub_path = tex_dir / "glyphtounicode.tex"
+    stub_created = not stub_path.exists()
+    if stub_created:
+        stub_path.write_text(r"\ifx\pdfglyphtounicode\undefined\def\pdfglyphtounicode#1#2{}\fi" + "\n")
+
     try:
         result = subprocess.run(
-            ["tectonic", tex_filename],
+            ["tectonic", "-Z", "continue-on-errors", tex_filename],
             cwd=tex_dir,
             capture_output=True,
             text=True,
@@ -242,6 +247,9 @@ def render_latex(path: str) -> dict[str, Any]:
         return {"success": False, "error": "tectonic not found. Install with: brew install tectonic"}
     except Exception as e:
         return {"success": False, "error": str(e)}
+    finally:
+        if stub_created and stub_path.exists():
+            stub_path.unlink()
 
 
 # MCP Resources

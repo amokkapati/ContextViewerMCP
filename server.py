@@ -2,7 +2,7 @@
 import json
 import mimetypes
 import os
-import re
+import shutil
 import subprocess
 import sys
 import time
@@ -11,22 +11,14 @@ from pathlib import Path
 from urllib.parse import quote, unquote, urlparse, parse_qs
 
 
-def _install_missing_latex_packages(error_output: str) -> list[str]:
-    """Parse LaTeX error output for missing .sty files and install them via tlmgr."""
-    missing = re.findall(r"File `([^']+\.sty)' not found", error_output)
-    if not missing:
-        return []
-    packages = [name[:-4] for name in missing]  # strip .sty
-    try:
-        subprocess.run(
-            ["tlmgr", "install"] + packages,
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        pass
-    return packages
+def _find_tectonic() -> str | None:
+    """Find the tectonic binary, checking PATH and common Homebrew locations."""
+    if path := shutil.which("tectonic"):
+        return path
+    for candidate in ["/opt/homebrew/bin/tectonic", "/usr/local/bin/tectonic"]:
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return None
 
 
 class FileServerHandler(SimpleHTTPRequestHandler):
@@ -214,41 +206,39 @@ class FileServerHandler(SimpleHTTPRequestHandler):
                 self.send_json_response({"success": False, "error": "Invalid .tex file"})
                 return
 
+            tectonic = _find_tectonic()
+            if not tectonic:
+                self.send_json_response({"success": False, "error": "tectonic not found. Re-run the installer: scripts/install.sh"})
+                return
+
             tex_dir = os.path.dirname(full_path)
             tex_filename = os.path.basename(full_path)
             pdf_filename = tex_filename.rsplit(".", 1)[0] + ".pdf"
             pdf_path = os.path.join(tex_dir, pdf_filename)
 
-            def _run_pdflatex():
-                return subprocess.run(
-                    ["pdflatex", "-interaction=nonstopmode", tex_filename],
+            # Tectonic uses XeTeX which lacks \pdfglyphtounicode. Drop a local
+            # stub that defines it as a no-op so tectonic doesn't choke on it.
+            stub_path = os.path.join(tex_dir, "glyphtounicode.tex")
+            stub_created = not os.path.exists(stub_path)
+            if stub_created:
+                with open(stub_path, "w") as f:
+                    f.write(r"\ifx\pdfglyphtounicode\undefined\def\pdfglyphtounicode#1#2{}\fi" + "\n")
+
+            try:
+                result = subprocess.run(
+                    [tectonic, "-Z", "continue-on-errors", tex_filename],
                     cwd=tex_dir,
                     capture_output=True,
                     text=True,
-                    timeout=60,
+                    timeout=120,
                 )
-
-            result = _run_pdflatex()
-
-            # If packages are missing, install them and retry once
-            if result.returncode != 0:
-                combined = result.stderr + result.stdout
-                installed = _install_missing_latex_packages(combined)
-                if installed:
-                    result = _run_pdflatex()
-
-            # Clean up auxiliary files
-            for ext in [".aux", ".log"]:
-                aux_file = os.path.join(tex_dir, tex_filename.rsplit(".", 1)[0] + ext)
-                if os.path.exists(aux_file):
-                    os.remove(aux_file)
+            finally:
+                if stub_created and os.path.exists(stub_path):
+                    os.remove(stub_path)
 
             if result.returncode != 0 or not os.path.exists(pdf_path):
-                # Show the *end* of the LaTeX log, which usually contains the
-                # actual error message, instead of only the banner.
-                error_msg = result.stderr or result.stdout or "pdflatex compilation failed"
-                tail = error_msg[-800:]  # keep last ~800 chars for context
-                self.send_json_response({"success": False, "error": tail})
+                error_msg = result.stderr or result.stdout or "tectonic compilation failed"
+                self.send_json_response({"success": False, "error": error_msg[-800:]})
                 return
 
             rel_pdf_path = os.path.relpath(pdf_path, self.base_dir)
@@ -258,8 +248,6 @@ class FileServerHandler(SimpleHTTPRequestHandler):
             })
         except subprocess.TimeoutExpired:
             self.send_json_response({"success": False, "error": "Compilation timed out"})
-        except FileNotFoundError:
-            self.send_json_response({"success": False, "error": "pdflatex not found. Please install LaTeX."})
         except Exception as e:
             self.send_json_response({"success": False, "error": str(e)})
 
