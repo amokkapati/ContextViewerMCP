@@ -4,6 +4,12 @@ Interactive document visualization via MCP (Model Context Protocol). Enables Cla
 
 ---
 
+## Prerequisites
+
+- **Claude Pro** subscription (required for MCP tool access in Claude Code)
+
+---
+
 ## Quick Start
 
 ### 1. Install
