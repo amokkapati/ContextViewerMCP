@@ -63,7 +63,13 @@ WRAPPER
 chmod +x "$BIN_DIR/contextviewermcp"
 echo "✓ Installed to $BIN_DIR/contextviewermcp"
 
-# --- 6. Print PATH instructions ---
+# --- 6. Install /go slash command for Claude Code ---
+CLAUDE_COMMANDS_DIR="$HOME/.claude/commands"
+mkdir -p "$CLAUDE_COMMANDS_DIR"
+cp "$REPO_DIR/.claude/commands/go.md" "$CLAUDE_COMMANDS_DIR/go.md"
+echo "✓ Installed /go slash command for Claude Code"
+
+# --- 7. Print PATH instructions ---
 echo ""
 echo "============================================"
 echo "  Installation complete!"
