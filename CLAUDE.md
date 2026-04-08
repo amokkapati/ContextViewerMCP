@@ -14,6 +14,10 @@ A web-based file/PDF viewer that lets users select code or text in the browser, 
 - Selection is saved to `~/.context-viewer-state.json`
 - User asks Claude a question → Claude reads the state file to get the selected text
 
+## Responding to selections and voice queries
+
+When the user asks you to check the selection or answer a voice query, call `get_selection` with **`wait: false`** (not `wait: true`) to read whatever is already in the state file. Do NOT use `wait: true` unless the user explicitly asks you to wait for them to make a new selection. The intended workflow is: user selects + speaks in browser first, then asks Claude — so the selection already exists when Claude is asked.
+
 ## Key files
 
 - `server.py` — HTTP server serving the browser UI (accepts `--serve-dir PATH`)
