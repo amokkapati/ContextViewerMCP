@@ -3,7 +3,11 @@
 Interactive document visualization via MCP (Model Context Protocol). Enables Claude and other AI assistants to work with documents and code files through a visual selection interface.
 
 ---
+## Video Demo
 
+- Link: https://www.youtube.com/watch?v=dFxKKjB2HuU
+
+---
 ## Prerequisites
 
 - **Claude Pro** subscription (required for MCP tool access in Claude Code)
