@@ -11,6 +11,7 @@ let activeTreeIsDir = false;
 let lastNavigationTimestamp = 0;
 let navigationPollInterval = null;
 let currentIsPdf = false;
+let lastPdfSelectedText = '';
 let currentFileMtime = null;
 let fileWatchInterval = null;
 
@@ -488,6 +489,7 @@ function showPdfPreview() {
     const sel = window.getSelection ? window.getSelection() : null;
     if (sel && sel.removeAllRanges) sel.removeAllRanges();
     currentIsPdf = false;
+    lastPdfSelectedText = '';
     _renderPdfIframe(content.dataset.pdfUrl);
 }
 
@@ -765,10 +767,12 @@ async function confirmSelection() {
     let endLine = null;
 
     if (isPdf) {
-        // Use the browser's native text selection for PDFs rendered with a
-        // text layer. This gives the most natural selection UX.
+        // Use the cached PDF selection (captured on selectionchange) so that
+        // clicking the mic button between selecting and confirming doesn't
+        // lose the selection.
         const sel = window.getSelection ? window.getSelection() : null;
-        selectedText = sel ? sel.toString() : '';
+        const liveText = sel ? sel.toString() : '';
+        selectedText = liveText.trim() ? liveText : lastPdfSelectedText;
         if (!selectedText.trim()) return;
     } else {
         // If no lines are selected, check if the voice input contains a "select lines X through Y" command
@@ -1083,14 +1087,15 @@ document.addEventListener('DOMContentLoaded', () => {
         isDragging    = false;
         dragStartLine = null;
     });
-    // For PDFs, watch native text selection to update the info bar.
+    // For PDFs, watch native text selection to update the info bar and cache it.
     document.addEventListener('selectionchange', () => {
         if (!currentIsPdf) return;
         const info = document.getElementById('selectionInfo');
-        if (!info) return;
         const sel = window.getSelection ? window.getSelection() : null;
-        const hasText = sel && sel.toString().trim().length > 0;
-        info.textContent = hasText
+        const text = sel ? sel.toString() : '';
+        if (text.trim()) lastPdfSelectedText = text;
+        if (!info) return;
+        info.textContent = text.trim()
             ? 'PDF text selected (no line numbers available)'
             : '';
     });
