@@ -2,6 +2,8 @@
 
 Interactive document visualization via MCP (Model Context Protocol). Enables Claude and other AI assistants to work with documents and code files through a visual selection interface.
 
+By: Aditya Mokkapati and Anish Nutakki
+
 ---
 ## Video Demo
 
